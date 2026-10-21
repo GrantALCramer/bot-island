@@ -34,7 +34,7 @@ async function startIsland() {
 
 // ---------- remote island ----------
 const REMOTE_FILE = () => path.join(app.getPath('userData'), 'remote.json');
-function readRemote() { try { const r = JSON.parse(fs.readFileSync(REMOTE_FILE(), 'utf8')); r.servers = (r.servers || []).map(String).filter((u) => /^https?:\/\//.test(u)).map((u) => u.replace(/\/+$/, '')); return r; } catch { return null; } }
+function readRemote() { try { const r = JSON.parse(fs.readFileSync(REMOTE_FILE(), 'utf8').replace(/^\uFEFF/, '')); r.servers = (r.servers || []).map(String).filter((u) => /^https?:\/\//.test(u)).map((u) => u.replace(/\/+$/, '')); return r; } catch { return null; } }
 function writeRemote(r) { fs.mkdirSync(path.dirname(REMOTE_FILE()), { recursive: true }); fs.writeFileSync(REMOTE_FILE(), JSON.stringify(r, null, 2) + '\n', { mode: 0o600 }); }
 async function reachable(u) { try { const c = new AbortController(); const t = setTimeout(() => c.abort(), 4000);
   const r = await fetch(u + '/manifest.webmanifest', { signal: c.signal, redirect: 'manual' }); clearTimeout(t); return r.status < 500; } catch { return false; } }
