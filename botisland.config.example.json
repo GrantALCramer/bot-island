@@ -1,0 +1,15 @@
+{
+  "port": 8787,
+  "openBrowser": true,
+  "eventsDir": "~/.botisland/events",
+  "chatDir": "~/.botisland/chat",
+  "chatWebhooksFile": "~/.botisland/chat-webhooks.json",
+  "agentsDir": null,
+  "sources": [
+    { "type": "folder", "path": "~/.botisland/events" },
+    { "type": "git", "url": "git@github.com:you/bot-status.git", "branch": "main", "subdir": "events", "pollSeconds": 30 }
+  ],
+  "staleMinutes": 30,
+  "demo": "auto",
+  "remote": { "enabled": false, "port": 8797, "keyFile": "~/.botisland/access-key", "tunnel": false, "cloudflared": "cloudflared" }
+}

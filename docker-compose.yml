@@ -1,0 +1,13 @@
+services:
+  botisland:
+    build: .
+    image: botisland:latest
+    container_name: botisland
+    restart: unless-stopped
+    ports:
+      - "8797:8797"          # key-protected endpoint (browser, phone app, bots)
+    volumes:
+      - ./data:/data         # events/, chat/, access-key, botisland.config.json (persistent)
+    environment:
+      - TZ=${TZ:-UTC}
+      # - BOTISLAND_DEMO=off

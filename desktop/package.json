@@ -1,0 +1,62 @@
+{
+  "name": "botisland-desktop",
+  "productName": "Bot Island",
+  "version": "0.1.0",
+  "description": "Bot Island desktop app: watch your bots as blobs on a 3D island (local, 127.0.0.1 only).",
+  "author": "Bot Island contributors",
+  "license": "MIT",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "stage": "node stage.mjs",
+    "start": "node stage.mjs && electron .",
+    "dist:win": "node stage.mjs && electron-builder --win nsis portable --x64"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "build": {
+    "appId": "com.botisland.app",
+    "productName": "Bot Island",
+    "copyright": "Copyright (c) 2026 Bot Island contributors",
+    "asar": false,
+    "directories": {
+      "output": "out",
+      "buildResources": "."
+    },
+    "files": [
+      "main.cjs",
+      "icon.ico",
+      "icon.png",
+      "island/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "BotIsland-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Bot Island",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "artifactName": "BotIsland-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "BotIsland-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3"
+  }
+}

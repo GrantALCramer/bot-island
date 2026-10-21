@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bot Island</title>
+<style>
+ body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:linear-gradient(#5ab8e2,#1d6fa5);color:#fff}
+ .card{width:min(92vw,420px);background:rgba(0,0,0,.28);border-radius:18px;padding:22px;box-sizing:border-box}
+ h1{margin:0 0 4px;font-size:24px;display:flex;gap:10px;align-items:center} h1 img{width:40px;height:40px;border-radius:10px}
+ p{opacity:.85;font-size:14px;line-height:1.4} label{display:block;margin:14px 0 4px;font-size:13px;opacity:.9}
+ input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:0;font-size:16px}
+ button{margin-top:16px;width:100%;padding:13px;border:0;border-radius:10px;font-size:16px;font-weight:600;background:#ffd166;color:#333}
+ button.sec{background:rgba(255,255,255,.2);color:#fff} .err{color:#ffb4b4;font-size:13px;min-height:1em;margin-top:8px}
+</style></head><body>
+<div class="card">
+ <h1><img src="icon.png" alt="">Bot Island</h1>
+ <p>Connect to your own island (your PC, home server, LXC, Tailscale or LAN address).</p>
+ <form id="f">
+  <label for="url">Island URL</label>
+  <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://my-island.tailnet.ts.net or http://192.168.1.20:8797" required>
+  <label for="key">Access key</label>
+  <input id="key" type="password" autocomplete="off" autocapitalize="off" placeholder="contents of access-key (blank if none)">
+  <button type="submit">Open island</button>
+  <button type="button" class="sec" id="forget">Forget saved island</button>
+  <div class="err" id="err"></div>
+ </form>
+ <p style="font-size:12px">Tip: press the phone's Back button on the island to return here and change the address or key.</p>
+</div>
+<script>
+const $ = (id) => document.getElementById(id); const S = localStorage;
+const norm = (u) => { u = u.trim(); if (!/^https?:\/\//i.test(u)) u = 'http://' + u; return u.replace(/\/+$/, ''); };
+const target = (u, k) => u + '/' + (k ? '?key=' + encodeURIComponent(k) : '');
+$('url').value = S.getItem('islandUrl') || ''; $('key').value = S.getItem('islandKey') || '';
+// cold start with a saved island: go straight there (Back from the island returns to this screen)
+if (S.getItem('islandUrl') && !sessionStorage.getItem('launched') && !location.search.includes('setup')) {
+  sessionStorage.setItem('launched', '1'); location.href = target(S.getItem('islandUrl'), S.getItem('islandKey'));
+}
+sessionStorage.setItem('launched', '1');
+$('f').onsubmit = async (e) => { e.preventDefault(); const u = norm($('url').value), k = $('key').value.trim();
+  try { new URL(u); } catch { $('err').textContent = 'That URL does not look right.'; return; }
+  S.setItem('islandUrl', u); S.setItem('islandKey', k); location.href = target(u, k); };
+$('forget').onclick = () => { S.removeItem('islandUrl'); S.removeItem('islandKey'); $('url').value = ''; $('key').value = ''; $('err').textContent = 'Forgotten.'; };
+</script></body></html>

@@ -1,0 +1,30 @@
+{
+  "_comment": "Example server config. Copy to config/server.config.json (gitignored). Paths are relative to this file.",
+  "port": 8787,
+  "openBrowser": false,
+  "eventsDir": "../events",
+  "chatDir": "../chat",
+  "chatWebhooksFile": "~/.botisland/chat-webhooks.json",
+  "agentsDir": "../agents",
+  "demo": "auto",
+  "remote": {
+    "enabled": true,
+    "port": 8797,
+    "keyFile": "../.access-key",
+    "tunnel": false,
+    "cloudflared": "../bin/cloudflared"
+  },
+  "sources": [
+    {
+      "type": "folder",
+      "path": "../events"
+    },
+    {
+      "type": "git",
+      "url": "https://github.com/you/bot-status.git",
+      "branch": "main",
+      "subdir": "events",
+      "pollSeconds": 15
+    }
+  ]
+}

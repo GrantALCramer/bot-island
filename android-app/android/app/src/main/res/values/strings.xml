@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bot Island</string>
+    <string name="title_activity_main">Bot Island</string>
+    <string name="package_name">app.botisland.android</string>
+    <string name="custom_url_scheme">app.botisland.android</string>
+</resources>

@@ -1,0 +1,27 @@
+[Unit]
+Description=Bot Island server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botisland
+Group=botisland
+WorkingDirectory=/opt/botisland
+Environment=BOTISLAND_HOME=/var/lib/botisland
+Environment=BOTISLAND_REMOTE=1
+Environment=BOTISLAND_REMOTE_PORT=8797
+# 127.0.0.1 = only reachable through Tailscale Serve / a reverse proxy on this host. Use 0.0.0.0 for direct LAN access.
+Environment=BOTISLAND_REMOTE_BIND=127.0.0.1
+Environment=BOTISLAND_OPEN=0
+ExecStart=/usr/bin/node /opt/botisland/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/botisland
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

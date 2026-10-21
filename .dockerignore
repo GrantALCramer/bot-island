@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-*
+events
+chat
+data
+agents
+config/*.json
+!config/*.example.json
+android
+desktop
+.access-key
+*.log
+.git

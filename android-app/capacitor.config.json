@@ -1,0 +1,7 @@
+{
+  "appId": "app.botisland.android",
+  "appName": "Bot Island",
+  "webDir": "www",
+  "server": { "androidScheme": "https", "allowNavigation": ["*"], "cleartext": true },
+  "android": { "allowMixedContent": true, "backgroundColor": "#5ab8e2" }
+}

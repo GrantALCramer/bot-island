@@ -1,0 +1,18 @@
+{
+  "name": "botisland-android",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot Island Android app (Capacitor shell that connects to your self-hosted island)",
+  "license": "MIT",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.9"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "botisland",
+  "private": true,
+  "license": "MIT",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node cli.mjs",
+    "serve": "node server.js",
+    "setup": "node cli.mjs --setup",
+    "dev": "vite",
+    "build": "vite build",
+    "test:git": "tools/test-git-source.sh"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@react-three/postprocessing": "^2.19.1",
+    "postprocessing": "^6.39.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright-core": "^1.64.0",
+    "vite": "^5.4.21"
+  },
+  "description": "Bot Island: watch your bots as blobs on a 3D island (local app).",
+  "bin": {
+    "botisland": "cli.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "cli.mjs",
+    "server.js",
+    "lib/",
+    "dist/",
+    "report.sh",
+    "report-git.sh",
+    "AGENT_REPORTING.md",
+    "botisland.config.example.json",
+    "README.md"
+  ]
+}
