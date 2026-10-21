@@ -120,7 +120,7 @@ void main(){
     vec3 crust = mix(uDeep, uMid*0.35, 0.3 + 0.3*n) * (0.35 + 0.65*uDay);
     vec3 glow = mix(uMid, uShallow, smoothstep(0.4, 1.0, hot)) * (1.4 + 0.5*sin(uTime*2.0 + n*6.0));
     vec3 c = mix(crust, glow, hot);
-    gl_FragColor = vec4(c, 1.0);
+    gl_FragColor = vec4(max(c, vec3(0.0)), 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #include <fog_fragment>
@@ -136,7 +136,7 @@ void main(){
     float foam = smoothstep(0.9, 0.0, abs(d - 0.3 - 0.4*swash));
     c = mix(c, uFoam, foam*0.6);
     c *= 0.35 + 0.65*uDay;
-    gl_FragColor = vec4(c, 1.0);
+    gl_FragColor = vec4(max(c, vec3(0.0)), 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #include <fog_fragment>
@@ -148,11 +148,11 @@ void main(){
     vec3 c = mix(uShallow, uMid, smoothstep(0.0, 14.0, d) * (0.7 + 0.3*n));
     c = mix(c, uDeep, smoothstep(14.0, 60.0, d)*0.5);
     c = mix(c, uFoam, crack*0.45 + smoothstep(1.2, 0.0, d)*0.6);
-    vec3 Vd = normalize(cameraPosition - vW); vec3 H = normalize(normalize(uSunDir) + Vd);
+    vec3 Vd = normalize(cameraPosition - vW); vec3 H = normalize(normalize(uSunDir) + Vd + vec3(0.0, 1e-4, 0.0));
     float sp = pow(max(H.y, 0.0), 60.0) * smoothstep(-0.1, 0.05, uSunDir.y);
     c = mix(c, uSky, pow(1.0 - max(Vd.y, 0.0), 4.0)*0.5);
     c *= 0.22 + 0.78*uDay; c += uSun*sp*0.5;
-    gl_FragColor = vec4(c, 1.0);
+    gl_FragColor = vec4(max(c, vec3(0.0)), 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #include <fog_fragment>
@@ -169,7 +169,7 @@ void main(){
   float dx = 0.6*0.35*cos(0.35*x+1.1*t) + 0.25*0.8*cos(0.8*(x+z)+1.7*t) + 0.12*2.1*cos(2.1*x+1.3*z+2.0*t) - 0.1*1.7*cos(-1.7*x+2.6*z+2.4*t) + 0.05*4.3*cos(4.3*x-3.1*z+3.1*t);
   float dz = 0.5*0.42*cos(0.42*z+0.9*t) + 0.25*0.8*cos(0.8*(x+z)+1.7*t) + 0.12*1.3*cos(2.1*x+1.3*z+2.0*t) + 0.1*2.6*cos(-1.7*x+2.6*z+2.4*t) - 0.05*3.1*cos(4.3*x-3.1*z+3.1*t);
   vec3 N = normalize(vec3(-dx*0.25, 1.0, -dz*0.25));
-  vec3 Vd = normalize(cameraPosition - vW); vec3 H = normalize(normalize(uSunDir) + Vd);
+  vec3 Vd = normalize(cameraPosition - vW); vec3 H = normalize(normalize(uSunDir) + Vd + vec3(0.0, 1e-4, 0.0));
   float sp = pow(max(dot(N, H), 0.0), 320.0) * 2.0 * smoothstep(0.5, 3.0, d) * smoothstep(-0.1, 0.05, uSunDir.y);
   float fres = pow(1.0 - max(dot(N, Vd), 0.0), 3.0);
   c = mix(c, uSky, fres * 0.45);
@@ -178,7 +178,7 @@ void main(){
   c += uSun * sp * (1.0 - uRain);
   float alpha = mix(0.55, 0.96, smoothstep(0.0, 3.5, min(d, db)));
   alpha = max(alpha, foam);
-  gl_FragColor = vec4(c, alpha);
+  gl_FragColor = vec4(max(c, vec3(0.0)), alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>

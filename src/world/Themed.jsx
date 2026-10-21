@@ -210,7 +210,7 @@ const PL_V = `attribute float aSeed; uniform float uTime, uSpeed, uSize; varying
 void main(){ vec3 p = position; float t = uTime*uSpeed + aSeed*20.; p.x += sin(t*0.5 + aSeed*7.)*1.2 + uTime*uSpeed*0.6; p.y += sin(t*0.7+aSeed*3.)*0.6; p.z += cos(t*0.4+aSeed*5.)*1.2;
   p.x = mod(p.x + 60., 120.) - 60.; vA = 0.4 + 0.6*sin(uTime*2. + aSeed*30.);
   vec4 mv = modelViewMatrix*vec4(p,1.); gl_Position = projectionMatrix*mv; gl_PointSize = uSize*(30./-mv.z); }`;
-const PL_F = `uniform vec3 uColor; uniform float uOp; varying float vA; void main(){ float d = length(gl_PointCoord-0.5); gl_FragColor = vec4(uColor, smoothstep(0.5,0.,d)*vA*uOp); }`;
+const PL_F = `uniform vec3 uColor; uniform float uOp; varying float vA; void main(){ float d = length(gl_PointCoord-0.5); float a = clamp((1.0 - smoothstep(0.0, 0.5, d)) * vA * uOp, 0.0, 1.0); if (a <= 0.0) discard; gl_FragColor = vec4(max(uColor, vec3(0.0)), a); }`;
 export function Plankton() {
   const { layout, env } = useWorld(); const E = layout.extent; const count = 700;
   const geo = useMemo(() => { const g = new THREE.BufferGeometry(); const p = new Float32Array(count * 3); const s = new Float32Array(count); const r = seeded(3);

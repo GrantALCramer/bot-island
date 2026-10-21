@@ -18,6 +18,12 @@ import { ActivityLog, ProfileEditor, TaskScreen } from './Panels.jsx';
 import { askPermission, chime, useAlertNotifications } from './notify.js';
 import { botColor, etHour, fmtET, fmtHour, STATE_INFO } from './util.js';
 import { useChat, ChatThread, ChatSettings } from './Chat.jsx';
+
+// Guard every material's output against negative / NaN colors. Some shaders (water, atlantis) can emit slightly
+// negative values; on NVIDIA/ANGLE-D3D the HDR bloom + sRGB pow() turn those into NaN, which shows up as flickering
+// black blocks and "tearing" once mipmap bloom spreads them. Clamping once here protects built-in and custom shaders.
+if (!THREE.ShaderChunk.tonemapping_fragment.includes('botisland-safe')) THREE.ShaderChunk.tonemapping_fragment =
+  '/* botisland-safe */ gl_FragColor.rgb = any(isnan(gl_FragColor.rgb)) ? vec3(0.0) : clamp(gl_FragColor.rgb, 0.0, 60000.0);\n' + THREE.ShaderChunk.tonemapping_fragment;
 import EarthTouch from './EarthTouch.jsx';
 import { RATES, DEFAULT_RATE, newClock, clockHour, pickWeather } from './random.js';
 
