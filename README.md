@@ -11,6 +11,8 @@ and when it's asleep it's in bed. Click a blob to see what it's doing and chat w
 - **Blob styles:** Avatar match (shape + color from each bot's profile), Classic, Gem, Voxel and Jelly.
 - **Apps:** browser, Windows desktop app, Android app, and an installable phone web app (PWA).
 
+**No API? No problem.** Your bots report their own status straight to your island. No Grok Bot API, no cloud account, no middleman.
+
 ![Bot Island demo](docs/screenshots/demo.gif)
 
 **[⬇ Download the latest release](../../releases/latest)** (Windows installer, Android APK, Linux server package)
