@@ -40,11 +40,12 @@ network (one sign-in) that lets your bots, PC and phone reach each other without
 ### Option 1 (recommended): your own always-on PC with the Windows app
 1. **Install the app:** run `BotIsland-Setup-<version>.exe` from the Releases page. SmartScreen will warn because the
    app isn't code-signed: click *More info → Run anyway*.
-2. **Keep it running:** add a Bot Island shortcut to your Startup folder (press `Win+R`, type `shell:startup`,
-   drag the shortcut in), and in *Settings → System → Power* set **Sleep** to *Never* when plugged in.
-3. **Let other devices in:** create `%APPDATA%\BotIsland\botisland.config.json` containing
-   `{ "remote": { "enabled": true } }` and restart the app. It now also listens on port 8797 with an access key,
-   which is saved in `%APPDATA%\BotIsland\access-key`.
+2. **Keep it running:** right-click the Bot Island icon in the system tray and tick **Start with Windows** (it then
+   starts quietly in the tray when you log in). In *Settings → System → Power* set **Sleep** to *Never* when plugged in.
+3. **Let your bots in:** in the same tray menu tick **Allow bot connections**. The island now also listens on port 8797,
+   and every request there needs your access key (tray → **Copy access key**). Both options are off by default.
+   *Manual fallback:* put `{ "remote": { "enabled": true } }` in `%APPDATA%\BotIsland\botisland.config.json` and
+   restart the app; the key is in `%APPDATA%\BotIsland\access-key`.
 4. **Install Tailscale** on the PC from <https://tailscale.com/download> and sign in. Then, in a terminal, run
    `tailscale serve --bg 8797`. Your island URL is now `https://<pc-name>.<your-tailnet>.ts.net` (shown by
    `tailscale serve status`).
@@ -163,6 +164,8 @@ to change the data dir, port or bind address.
 - **Desktop app (recommended):** run `BotIsland-Setup-<version>.exe` from the Releases page (or
   `BotIsland-Portable-<version>.exe`, no install). Windows SmartScreen may warn because the app isn't code-signed:
   *More info → Run anyway*. It runs the island locally in its own window with a tray icon; data in `%APPDATA%\BotIsland`.
+  Tray menu: **Allow bot connections** (key-protected port 8797), **Copy access key**, **Start with Windows**, and **Server**
+  (open a remote island listed in `%APPDATA%\Bot Island\remote.json` instead of the local one).
   Build it yourself: `cd desktop && npm ci && npm run dist:win` (cross-builds from Linux with wine).
 - **From source:** install Node.js 18+, then double-click `start-botisland.bat`.
 - Bots on Windows report with `report.ps1` (see below).

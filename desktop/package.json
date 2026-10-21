@@ -1,7 +1,7 @@
 {
   "name": "botisland-desktop",
   "productName": "Bot Island",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bot Island desktop app: watch your bots as blobs on a 3D island (local, 127.0.0.1 only).",
   "author": "Bot Island contributors",
   "license": "MIT",

@@ -4,13 +4,31 @@
 // Remote island (optional): <userData>/remote.json = { "enabled": true, "servers": ["https://island.example.ts.net", "http://192.168.1.20:8797"],
 //   "key": "<island access key>" }. On launch the first server that answers is opened (key traded for a cookie, so no
 //   login prompt); if none answers, the built-in local island starts instead. Tray menu: switch server / edit settings.
-const { app, BrowserWindow, Menu, shell, dialog, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, Tray, nativeImage, clipboard } = require('electron');
 const path = require('node:path'); const fs = require('node:fs'); const net = require('node:net'); const { pathToFileURL } = require('node:url');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setAppUserModelId('com.botisland.app'); // Windows: taskbar pinning + notifications
 const ISLAND = path.join(__dirname, 'island'); const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
-let win = null; let island = null; let tray = null; let quitting = false;
+let win = null; let island = null; let tray = null; let quitting = false; let islandFile = null;
+const HIDDEN = process.argv.includes('--hidden'); // launched at login: stay in the tray
+// desktop settings (Tray toggles): <island config>.remote.enabled = 'Allow bot connections' (key-protected port 8797);
+// <userData>/desktop.json { startWithWindows } = 'Start with Windows' (login item, starts hidden in the tray). Both default off.
+const DESK_FILE = () => path.join(app.getPath('userData'), 'desktop.json');
+function readDesk() { try { return JSON.parse(fs.readFileSync(DESK_FILE(), 'utf8')); } catch { return {}; } }
+function writeDesk(d) { fs.mkdirSync(path.dirname(DESK_FILE()), { recursive: true }); fs.writeFileSync(DESK_FILE(), JSON.stringify(d, null, 2) + '\n'); }
+function readIslandCfg() { try { return JSON.parse(fs.readFileSync(islandFile, 'utf8').replace(/^\uFEFF/, '')); } catch { return {}; } }
+function setStartWithWindows(on) { const d = readDesk(); d.startWithWindows = !!on; writeDesk(d);
+  try { app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] }); } catch {} buildTray(); }
+async function setAllowBots(on) {
+  if (!islandFile) { const { loadConfig } = await import(pathToFileURL(path.join(ISLAND, 'lib', 'config.js')).href); islandFile = loadConfig({ argv: [] }).file; }
+  const c = readIslandCfg(); c.remote = { ...(c.remote || {}), enabled: !!on };
+  fs.mkdirSync(path.dirname(islandFile), { recursive: true }); fs.writeFileSync(islandFile, JSON.stringify(c, null, 2) + '\n', { mode: 0o600 });
+  if (island) { const old = island; island = null; await Promise.race([old.close(), new Promise((r) => setTimeout(r, 3000))]); await startIsland();
+    if (!current?.remote) { current = { url: island.localUrl, remote: false, load: island.localUrl }; win?.loadURL(current.load); } }
+  if (on && island && !island.remoteUrl) dialog.showMessageBox(win, { type: 'warning', message: 'Port 8797 is busy', detail: 'Bot connections could not be opened because another program is using port 8797.' });
+  buildTray();
+}
 
 const portFree = (p) => new Promise((ok) => { const s = net.createServer(); s.once('error', () => ok(false)); s.listen(p, '127.0.0.1', () => s.close(() => ok(true))); });
 async function freePort(start) { for (let p = start; p < start + 40; p++) if (await portFree(p)) return p;
@@ -19,11 +37,11 @@ async function freePort(start) { for (let p = start; p < start + 40; p++) if (aw
 async function startIsland() {
   process.env.BOTISLAND_APP_VERSION = app.getVersion();
   const { loadConfig } = await import(pathToFileURL(path.join(ISLAND, 'lib', 'config.js')).href);
-  let L = loadConfig({ argv: [] });
+  let L = loadConfig({ argv: [] }); islandFile = L.file;
   if (!L.fileFound) { // first run: no console questions; default to the local folder (changeable in Island settings)
     const cfg = { port: 8787, openBrowser: false, eventsDir: path.join(L.dataDir, 'events'), demo: 'auto' };
     fs.mkdirSync(path.dirname(L.file), { recursive: true }); fs.writeFileSync(L.file, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
-    fs.mkdirSync(cfg.eventsDir, { recursive: true }); L = loadConfig({ argv: [] });
+    fs.mkdirSync(cfg.eventsDir, { recursive: true }); L = loadConfig({ argv: [] }); islandFile = L.file;
   }
   const config = { ...L.config, openBrowser: false, port: await freePort(L.config.port || 8787) };
   if (config.remote?.enabled && !(await portFree(config.remote.port))) config.remote = { ...config.remote, enabled: false };
@@ -52,7 +70,7 @@ function createWindow(url) {
     if (sameSite(u)) return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: ICON, width: 860, height: 760 } };
     if (/^https?:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, u) => { if (!sameSite(u)) { e.preventDefault(); if (/^https?:/.test(u)) shell.openExternal(u); } });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { if (!HIDDEN) win.show(); });
   win.on('closed', () => { win = null; app.quit(); });
   win.loadURL(url);
 }
@@ -77,7 +95,10 @@ function buildTray() {
     tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Show Bot Island', click: () => win && (win.show(), win.focus()) },
       { label: 'Server', submenu: [...servers, { label: 'This PC (local island)', type: 'radio', checked: !current?.remote, click: () => go('local') }, { type: 'separator' },
         { label: 'Reconnect', click: () => go() }, { label: 'Edit server settings…', click: () => { if (!fs.existsSync(REMOTE_FILE())) writeRemote({ enabled: false, servers: [], key: '' }); shell.openPath(REMOTE_FILE()); } }] },
-      { label: 'Open in browser', click: () => current && shell.openExternal(current.url) }, { type: 'separator' }, { label: 'Quit', click: () => app.quit() }]));
+      { label: 'Open in browser', click: () => current && shell.openExternal(current.url) }, { type: 'separator' },
+      { label: 'Allow bot connections (port 8797, needs access key)', type: 'checkbox', checked: !!readIslandCfg().remote?.enabled, click: (m) => setAllowBots(m.checked).catch((e) => dialog.showErrorBox('Bot Island', String(e?.message || e))) },
+      ...(island?.accessKey ? [{ label: 'Copy access key', click: () => clipboard.writeText(island.accessKey) }] : []),
+      { label: 'Start with Windows', type: 'checkbox', checked: !!readDesk().startWithWindows, click: (m) => setStartWithWindows(m.checked) }, { type: 'separator' }, { label: 'Quit', click: () => app.quit() }]));
   } catch {}
 }
 app.whenReady().then(async () => {
