@@ -18,10 +18,94 @@ and when it's asleep it's in bed. Click a blob to see what it's doing and chat w
 | ![Haunted Graveyard](docs/screenshots/haunted.png) | ![Settings](docs/screenshots/settings.png) |
 
 ## Contents
-[Quick start](#quick-start) · [Linux server / Proxmox](#linux-server-docker-systemd-proxmox) ·
+[Choose where to host](#choose-where-to-host-your-island) · [Phone setup](#connect-from-your-phone) ·
+[Good to know](#downsides--good-to-know) · [Quick start](#quick-start) · [Linux server / Proxmox](#linux-server-docker-systemd-proxmox) ·
 [Windows](#windows) · [macOS](#macos) · [Configuration](#configuration) · [How bots report](#how-bots-report-status) ·
 [Chat](#chat-with-your-bots) · [Phone](#phone-android-app-and-pwa) · [Remote access](#remote-access-and-the-access-key) ·
 [Development](#development)
+
+## Choose where to host your island
+New here (maybe from a reel)? Your island is a small web server that **you** run. Your bots send it status updates and
+you open it from your PC or phone. Pick one of these three options:
+
+| Option | Best for | Needs |
+|---|---|---|
+| **1. Your own always-on PC** (recommended) | most people | a Windows PC that stays on, free Tailscale account |
+| **2. Your Grok Bot's computer** | people without an always-on PC | free Tailscale account |
+| **3. Docker / Linux server / Proxmox** | home-lab folks | a server you already run |
+
+**Why Tailscale?** Your Grok Bots run on Grok Bot's cloud computer, not in your house. Tailscale is a free private
+network (one sign-in) that lets your bots, PC and phone reach each other without opening ports on your router.
+
+### Option 1 (recommended): your own always-on PC with the Windows app
+1. **Install the app:** run `BotIsland-Setup-<version>.exe` from the Releases page. SmartScreen will warn because the
+   app isn't code-signed: click *More info → Run anyway*.
+2. **Keep it running:** add a Bot Island shortcut to your Startup folder (press `Win+R`, type `shell:startup`,
+   drag the shortcut in), and in *Settings → System → Power* set **Sleep** to *Never* when plugged in.
+3. **Let other devices in:** create `%APPDATA%\BotIsland\botisland.config.json` containing
+   `{ "remote": { "enabled": true } }` and restart the app. It now also listens on port 8797 with an access key,
+   which is saved in `%APPDATA%\BotIsland\access-key`.
+4. **Install Tailscale** on the PC from <https://tailscale.com/download> and sign in. Then, in a terminal, run
+   `tailscale serve --bg 8797`. Your island URL is now `https://<pc-name>.<your-tailnet>.ts.net` (shown by
+   `tailscale serve status`).
+5. **Install Tailscale on your phone** too and sign in with the same account (see [Connect from your phone](#connect-from-your-phone)).
+6. **Connect your bots:** paste this into your Grok Bot, filling in the two placeholders:
+
+   ```text
+   Please connect yourself to my Bot Island so you show up on it.
+   - Island URL: <your island URL, e.g. https://my-pc.my-tailnet.ts.net>
+   - Access key: <your access key>
+   Steps:
+   1. Install Tailscale on your computer and join my tailnet. Give me the login link to approve.
+      (If your computer has no TUN device, run tailscaled in userspace mode with a SOCKS5/HTTP proxy
+      and send island requests through it.)
+   2. Read <island URL>/agent.txt (send "Authorization: Bearer <access key>") and follow it.
+   3. Set up a status-reporting skill/script so that every time your state changes (working, researching,
+      thinking, waiting_on_user, error, done, idle) you POST {"bot","state","task","action"} to
+      <island URL>/api/ingest/report with the header "Authorization: Bearer <access key>".
+   4. Save the URL and key in a private config file (chmod 600), never in a shared repo or chat.
+   5. Send one test report and tell me when you appear on the island.
+   ```
+   Do the same for each bot, or ask one bot to set it up for all of them if they share a computer.
+
+### Option 2: host on your Grok Bot's own computer
+No always-on PC needed. Paste this into your Grok Bot:
+
+```text
+Please host Bot Island for me on your computer.
+1. Clone https://github.com/<owner>/bot-island and run it with the remote endpoint on
+   (BOTISLAND_REMOTE=1 npm start), in the background.
+2. Add a keep-alive check (e.g. a scheduled job every few minutes) that restarts it if it isn't running.
+3. Install Tailscale, join my tailnet (give me the login link), and run `tailscale serve --bg 8797`.
+4. Set up status reporting for all my bots to this island (see /agent.txt).
+5. Tell me the island URL. Give me the access key privately, and don't post it anywhere else.
+```
+Downsides:
+- **It restarts now and then.** The island is down until the keep-alive check brings it back.
+- **It's tied to your Grok Bot account.** If the account ends or the computer is reset, the island and its history go
+  with it. Ask your bot to back up its data folder (`~/.botisland`) somewhere you own.
+
+### Option 3 (advanced): Docker, a Linux server, or Proxmox
+Use `docker compose up -d --build` or `deploy/install-debian.sh --tailscale`. See
+[Linux server (Docker, systemd, Proxmox)](#linux-server-docker-systemd-proxmox) below.
+
+## Connect from your phone
+1. Install the **Tailscale** app on your phone and sign in with the same account as your island.
+2. Install the Android app: download `BotIsland-android-<version>.apk` from the Releases page and allow
+   *Install unknown apps* when asked (details in [Phone](#phone-android-app-and-pwa)). On iPhone, open the island
+   in Safari and use *Share → Add to Home Screen*.
+3. Open the app and enter your **island URL** and **access key**.
+
+*Planned:* QR-code pairing so you can scan instead of typing.
+
+## Downsides / good to know
+- **Tailscale is required on every device** that opens the island (PC, phone, and each bot's computer).
+- **The host must stay awake.** If the PC sleeps or turns off, bots can't report and your phone can't connect.
+- **The access key is full admin access.** Never show it (or the `?key=` URL) in screenshots, screen recordings or
+  reels. If it leaks, delete the `access-key` file and restart to get a new one.
+- **The apps aren't code-signed yet.** Windows shows a SmartScreen warning and Android asks you to allow unknown apps.
+- *Planned:* an in-app "Update available" notice. For now, update by installing the new release over the old one
+  (your data is kept) or with `git pull`.
 
 ## Quick start
 Needs **Node.js 18+** and git.
