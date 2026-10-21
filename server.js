@@ -527,6 +527,7 @@ wss.on('connection', (ws) => { ws.send(JSON.stringify(snapshot())); ws.send(JSON
 // ---------- start / stop ----------
 // ---------- remote ingest: bots on other machines report with the island key as a Bearer header ----------
 //   POST /api/ingest/report   {bot, state, task?, action?, with?}       -> appended to <eventsDir>/<bot>.jsonl
+//   POST /api/ingest/reply    {bot, messageId, text}                    -> chat reply, like reply.sh
 //   POST /api/ingest/profiles {profiles:[{name, avatarShape, avatarColor, title?}]} -> replaces the pushed profile list
 async function ingestRoute(req, res, p) {
   if (!req.viaBearer) return json(res, 401, { error: 'Authorization: Bearer <island key> required' });
@@ -547,6 +548,14 @@ async function ingestRoute(req, res, p) {
     if (!Array.isArray(body.profiles)) return json(res, 400, { error: 'profiles[] required' });
     const list = body.profiles.slice(0, 100).filter((x) => x && x.name).map((x) => ({ name: str(x.name, 60), agentId: str(x.agentId, 80) || undefined, title: str(x.title, 120), shape: str(x.avatarShape ?? x.shape, 30) || null, color: str(x.avatarColor ?? x.color, 30) || null }));
     fs.writeFileSync(PUSHED_FILE, JSON.stringify(list, null, 1)); profiles = readAllProfiles(); broadcast(); return json(res, 200, { ok: true, count: list.length });
+  }
+  if (p === '/api/ingest/reply') { // same lines reply.sh writes locally: the reply + a 'replied' status for the message
+    const bot = slug(str(body.bot, 60)); const mid = str(body.messageId, 80); const text = str(body.text, 2000).replace(/\r\n/g, '\n').trim();
+    if (!bot || !/^[A-Za-z0-9._-]{1,80}$/.test(mid) || !text) return json(res, 400, { error: 'bot, messageId and text required' });
+    const ts = new Date().toISOString(); const rid = 'r-' + Date.now().toString(16) + '-' + crypto.randomBytes(3).toString('hex');
+    fs.mkdirSync(C.chatDir, { recursive: true });
+    fs.appendFileSync(path.join(C.chatDir, bot + '.jsonl'), JSON.stringify({ type: 'msg', id: rid, ts, bot, from: bot, text, replyTo: mid }) + '\n' + JSON.stringify({ type: 'status', id: mid, ts, status: 'replied' }) + '\n');
+    chatReload(); return json(res, 200, { ok: true, id: rid });
   }
   return json(res, 404, { error: 'not found' });
 }
