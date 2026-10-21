@@ -44,6 +44,14 @@ function readProfiles() {
   return out;
 }
 
+// profiles pushed by remote bots over the API (POST /api/ingest/profiles), merged under on-disk profiles
+let PUSHED_FILE = null;
+function readPushedProfiles() {
+  if (!PUSHED_FILE) return [];
+  try { return JSON.parse(fs.readFileSync(PUSHED_FILE, 'utf8')).filter((p) => p && p.name).map((p) => ({ id: slug(p.name), agentId: p.agentId || slug(p.name), name: p.name, title: p.title || '', shape: p.shape || null, color: p.color || null })); } catch { return []; }
+}
+const readAllProfiles = () => { const a = readProfiles(); for (const p of readPushedProfiles()) if (!a.find((x) => x.id === p.id)) a.push(p); return a; };
+
 // ---------- fold real events ----------
 let CONFIG_FILE = null; let DATA_DIR = null; let reloadEvents = () => {};
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
@@ -302,7 +310,7 @@ function handle(req, res, isPublic) {
   // install files (app manifest, icons, service worker) hold nothing private; Chrome fetches the manifest without cookies
   const PWA_PUBLIC = url.pathname === '/manifest.webmanifest' || url.pathname === '/sw.js' || /^\/icons\/[\w.-]+\.png$/.test(url.pathname);
   // a bot self-registering its chat webhook authenticates with the island key as a Bearer header (never in the URL)
-  const bearer = url.pathname === '/api/chat/register' && !url.searchParams.has('key') ? bearerAuth(req) : null;
+  const bearer = (url.pathname === '/api/chat/register' || url.pathname.startsWith('/api/ingest/')) && !url.searchParams.has('key') ? bearerAuth(req) : null;
   const auth = PWA_PUBLIC && !url.searchParams.has('key') ? 'ok' : bearer ?? checkAuth(req, isPublic, url); req.viaBearer = bearer === 'ok';
   if (auth !== 'ok') return deny(res, auth);
   if (url.searchParams.has('key')) { // trade the key for a cookie, then drop it from the address bar
@@ -317,7 +325,7 @@ function handle(req, res, isPublic) {
   }
   if (url.pathname === '/api/state') { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); return res.end(JSON.stringify(snapshot())); }
   if (url.pathname === '/api/demo/reset') {
-    if (!localBypass(req, isPublic)) { res.writeHead(403, { 'content-type': 'text/plain', ...SEC_HEADERS }); return res.end('demo reset is local-only'); } profiles = readProfiles(); demoReset(profiles); broadcast(); res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
+    if (!localBypass(req, isPublic)) { res.writeHead(403, { 'content-type': 'text/plain', ...SEC_HEADERS }); return res.end('demo reset is local-only'); } profiles = readAllProfiles(); demoReset(profiles); broadcast(); res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
   if (url.pathname.startsWith('/api/chat')) return chatRoute(req, res, url, isPublic);
   if (url.pathname === '/api/log') { const since = +url.searchParams.get('since') || 0; const bot = url.searchParams.get('bot');
     return json(res, 200, { events: LOG.filter((e) => e.ts >= since && (!bot || e.bot === bot)).slice(-1500) }); }
@@ -329,6 +337,7 @@ function handle(req, res, isPublic) {
   if (url.pathname === '/api/config/git') return gitRoute(req, res, isPublic);
   if (url.pathname === '/api/config/events-dir') return eventsDirRoute(req, res, isPublic);
   if (url.pathname === '/api/bots/custom') return customRoute(req, res, isPublic);
+  if (url.pathname.startsWith('/api/ingest/')) return ingestRoute(req, res, url.pathname);
   if (url.pathname === '/api/alerts/clear') return clearRoute(req, res, isPublic);
   let p = path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, '');
   let file = path.join(DIST, p === '/' ? 'index.html' : p);
@@ -516,7 +525,34 @@ function broadcast() { const msg = JSON.stringify(snapshot()); for (const c of w
 wss.on('connection', (ws) => { ws.send(JSON.stringify(snapshot())); ws.send(JSON.stringify({ type: 'chat', full: true, threads: CHAT.threads, connected: chatConnected() })); });
 
 // ---------- start / stop ----------
+// ---------- remote ingest: bots on other machines report with the island key as a Bearer header ----------
+//   POST /api/ingest/report   {bot, state, task?, action?, with?}       -> appended to <eventsDir>/<bot>.jsonl
+//   POST /api/ingest/profiles {profiles:[{name, avatarShape, avatarColor, title?}]} -> replaces the pushed profile list
+async function ingestRoute(req, res, p) {
+  if (!req.viaBearer) return json(res, 401, { error: 'Authorization: Bearer <island key> required' });
+  if (req.method !== 'POST') { res.setHeader('allow', 'POST'); return json(res, 405, { error: 'POST only' }); }
+  const { body, bad, tooBig } = await readJson(req);
+  if (tooBig) return json(res, 413, { error: 'too big' }); if (bad || !body || typeof body !== 'object') return json(res, 400, { error: 'bad JSON' });
+  const str = (v, n) => String(v ?? '').slice(0, n);
+  if (p === '/api/ingest/report') {
+    const name = str(body.bot, 60).trim(); const id = slug(name); if (!id) return json(res, 400, { error: 'bad bot' });
+    const e = { ts: new Date().toISOString(), bot: name, state: str(body.state || 'working', 40), task: str(body.task, 200) };
+    if (body.action) e.action = str(body.action, 200);
+    const w = (Array.isArray(body.with) ? body.with : String(body.with || '').split(',')).map((x) => str(x, 60).trim()).filter(Boolean).slice(0, 4);
+    if (w.length) e.with = w.length > 1 ? w : w[0];
+    fs.mkdirSync(C.eventsDir, { recursive: true }); fs.appendFileSync(path.join(C.eventsDir, id + '.jsonl'), JSON.stringify(e) + '\n');
+    reloadEvents(); return json(res, 200, { ok: true });
+  }
+  if (p === '/api/ingest/profiles') {
+    if (!Array.isArray(body.profiles)) return json(res, 400, { error: 'profiles[] required' });
+    const list = body.profiles.slice(0, 100).filter((x) => x && x.name).map((x) => ({ name: str(x.name, 60), agentId: str(x.agentId, 80) || undefined, title: str(x.title, 120), shape: str(x.avatarShape ?? x.shape, 30) || null, color: str(x.avatarColor ?? x.color, 30) || null }));
+    fs.writeFileSync(PUSHED_FILE, JSON.stringify(list, null, 1)); profiles = readAllProfiles(); broadcast(); return json(res, 200, { ok: true, count: list.length });
+  }
+  return json(res, 404, { error: 'not found' });
+}
+
 export async function startServer(config, dataDir, opts = {}) {
+  PUSHED_FILE = path.join(dataDir, 'pushed-profiles.json');
   C = config; CONFIG_FILE = opts.configFile || null; DATA_DIR = dataDir;
   if (C.remote?.enabled) { ACCESS_KEY = loadKey(C.remote.keyFile); COOKIE_VAL = crypto.createHmac('sha256', ACCESS_KEY).update('botsim-cookie-v1').digest('base64url'); }
   SOURCES = makeSources(C, dataDir);
@@ -525,13 +561,13 @@ export async function startServer(config, dataDir, opts = {}) {
   fs.mkdirSync(C.chatDir, { recursive: true }); CHAT.readAll();
   let ct = null; let chatWatch = null; try { chatWatch = fs.watch(C.chatDir, () => { clearTimeout(ct); ct = setTimeout(() => chatReload(), 120); }); } catch {}
   ACK_FILE = path.join(dataDir, 'alert-acks.json'); fs.mkdirSync(dataDir, { recursive: true }); loadAcks(); CUSTOM_FILE = path.join(dataDir, 'bot-custom.json'); loadCustom();
-  profiles = readProfiles(); demoReset(profiles);
+  profiles = readAllProfiles(); demoReset(profiles);
   let t = null; const reload = reloadEvents = () => { clearTimeout(t); t = setTimeout(() => { real = readEvents(); broadcast(); chatReload(); }, 150); };
   for (const s of SOURCES) await s.start(reload);
   real = readEvents();
   const timers = [
     setInterval(() => { real = readEvents(); chatReload(); }, 10000), // safety net for missed fs events
-    setInterval(() => { profiles = readProfiles(); }, 60000),
+    setInterval(() => { profiles = readAllProfiles(); }, 60000),
     setInterval(() => { if (demoActive() && demoTick()) broadcast(); }, 1000),
     setInterval(broadcast, 15000), // refresh stale/done timers
   ];
