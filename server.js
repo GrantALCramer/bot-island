@@ -83,7 +83,7 @@ function readEvents() {
       const id = slug(e.bot || e.name || f.replace(/\.jsonl$/, ''));
       if (!id) continue;
       const b = bots[id] ||= { id, actions: [] };
-      if (e.name) b.name = e.name;
+      if (e.name) b.name = e.name; else if (e.bot && !b.name) b.name = String(e.bot).slice(0, 60); // display name = the reported name ("Option2 Bot", not "option2-bot")
       if (e.title || e.role) b.title = e.title || e.role;
       if (e.shape) b.shape = e.shape;
       if (e.color) b.color = e.color;
