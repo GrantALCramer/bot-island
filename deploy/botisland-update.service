@@ -1,0 +1,6 @@
+[Unit]
+Description=Bot Island one-click update (download official release, verify, swap, health-check, roll back)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/lib/botisland-update.sh

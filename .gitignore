@@ -31,3 +31,4 @@ data/
 android/app/build/
 android/.gradle/
 shots/
+release/

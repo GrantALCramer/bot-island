@@ -1,3 +1,4 @@
+import { UpdateBanner, PairDevice } from './Admin.jsx';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -212,6 +213,7 @@ export default function App() {
     </Canvas>
 
     {ui && <>
+      <UpdateBanner />
       <div className="title panel">
         <div className="t1">{ICON[theme.id] || ''} Bot Island</div>
         <div className="t2">{fmtHour(nowHour)} ET · {bots.length} {bots.length === 1 ? "bot" : "bots"} {demo && <span className="pill demo" title="No real bots have reported yet. See Island settings → Bots report to">DEMO</span>} {!connected && <span className="pill off">offline</span>}</div>
@@ -306,6 +308,8 @@ export default function App() {
         <ul className="srcs">{sources.map((s, i) => <li key={i} title={s.error || ''}><span className={'sd ' + (s.ok ? 'ok' : 'bad')} />{s.type === 'git' ? '🔀 git ' : '📁 '}<code>{s.label}</code>{s.error && <small className="err"> {s.error.slice(0, 90)}</small>}</li>)}</ul>
         <div className="muted small">{demo ? 'No real bots have reported yet, so demo bots are shown. ' : ''}Give your bots <a href="/agent.txt" target="_blank" rel="noreferrer">agent.txt</a> (how to report). </div>
         <EventsDirEditor />
+        </Sec><Sec id="pair" title="Pair a phone or PC">
+        <PairDevice />
         </Sec>
       </div>}
 

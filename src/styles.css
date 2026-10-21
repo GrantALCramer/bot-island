@@ -196,3 +196,7 @@ canvas { touch-action: none; }
 .settings .secs { margin-left: auto; font-size: 11px; color: #8a8f98; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
 .settings .secb { padding: 0 2px 8px; }
 .settings .secb > .lbl:first-child { margin-top: 2px; }
+.updbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: min(92vw, 640px); padding: 8px 12px; font-size: 13px; }
+.updbar code { font-size: 11.5px; } .updbar .linkish { background: none; border: 0; cursor: pointer; font-size: 14px; min-height: 0; }
+.pair .pairwarn { margin: 6px 0; padding: 6px 8px; border-radius: 8px; background: #fff3cd; color: #6b4e00; font-size: 12px; }
+.pair .pairqr { display: block; margin: 6px auto; width: 200px; height: 200px; image-rendering: pixelated; background: #fff; padding: 6px; border-radius: 8px; }

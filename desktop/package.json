@@ -1,7 +1,7 @@
 {
   "name": "botisland-desktop",
   "productName": "Bot Island",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Bot Island desktop app: watch your bots as blobs on a 3D island (local, 127.0.0.1 only).",
   "author": "Bot Island contributors",
   "license": "MIT",
@@ -10,9 +10,10 @@
   "scripts": {
     "stage": "node stage.mjs",
     "start": "node stage.mjs && electron .",
-    "dist:win": "node stage.mjs && electron-builder --win nsis portable --x64"
+    "dist:win": "node stage.mjs && electron-builder --win nsis portable --x64 --publish never"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "ws": "^8.22.0"
   },
   "build": {
@@ -53,7 +54,15 @@
     },
     "portable": {
       "artifactName": "BotIsland-Portable-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "GrantALCramer",
+        "repo": "bot-island",
+        "releaseType": "release"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^38.8.6",

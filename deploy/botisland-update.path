@@ -1,0 +1,9 @@
+[Unit]
+Description=Bot Island one-click update trigger
+
+[Path]
+PathExists=/var/lib/botisland/update-request.json
+Unit=botisland-update.service
+
+[Install]
+WantedBy=multi-user.target

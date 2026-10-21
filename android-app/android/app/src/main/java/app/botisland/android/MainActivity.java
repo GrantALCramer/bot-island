@@ -1,5 +1,7 @@
 package app.botisland.android;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
@@ -13,6 +15,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         goFullscreen();
+        // Downloads (e.g. a newer APK from GitHub Releases, offered on the setup screen of sideloaded builds) go to the
+        // system browser, which handles the download and install prompt. Only https links are passed on.
+        WebView web = getBridge() != null ? getBridge().getWebView() : null;
+        if (web != null) web.setDownloadListener((url, ua, cd, mime, len) -> {
+            if (url == null || !url.startsWith("https://")) return;
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) {}
+        });
         // Back: go back in the WebView (island -> setup screen), else leave the app.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {

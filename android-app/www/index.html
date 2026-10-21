@@ -10,33 +10,67 @@
  input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:0;font-size:16px}
  button{margin-top:16px;width:100%;padding:13px;border:0;border-radius:10px;font-size:16px;font-weight:600;background:#ffd166;color:#333}
  button.sec{background:rgba(255,255,255,.2);color:#fff} .err{color:#ffb4b4;font-size:13px;min-height:1em;margin-top:8px}
+ #scan{position:fixed;inset:0;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9}
+ #scan video{width:100%;max-height:75vh;object-fit:cover} #scan p{margin:12px} #scan button{width:auto;padding:12px 28px}
+ #upd{display:none;background:#ffd166;color:#333;border-radius:10px;padding:10px;margin-bottom:12px;font-size:14px} #upd a{color:#1d4f8a;font-weight:600}
 </style></head><body>
 <div class="card">
+ <div id="upd"></div>
  <h1><img src="icon.png" alt="">Bot Island</h1>
- <p>Connect to your own island (your PC, home server, LXC, Tailscale or LAN address).</p>
+ <p>Connect to your own island. Easiest: on the island open <b>Island settings → Pair a phone or PC → Show pairing QR</b>, then tap <b>Scan QR</b>.</p>
+ <button type="button" id="scanbtn">📷 Scan QR</button>
  <form id="f">
   <label for="url">Island URL</label>
-  <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://my-island.tailnet.ts.net or http://192.168.1.20:8797" required>
+  <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://my-pc.my-tailnet.ts.net" required>
   <label for="key">Access key</label>
-  <input id="key" type="password" autocomplete="off" autocapitalize="off" placeholder="contents of access-key (blank if none)">
+  <input id="key" type="password" autocomplete="off" autocapitalize="off" placeholder="your island's access key">
   <button type="submit">Open island</button>
   <button type="button" class="sec" id="forget">Forget saved island</button>
   <div class="err" id="err"></div>
  </form>
- <p style="font-size:12px">Tip: press the phone's Back button on the island to return here and change the address or key.</p>
+ <p style="font-size:12px">Your phone needs the Tailscale app turned on (same account as the island). Press Back on the island to return here.</p>
 </div>
+<div id="scan"><video id="vid" playsinline muted></video><p>Point the camera at the pairing QR code</p><button type="button" class="sec" id="stopscan">Cancel</button></div>
+<script src="flags.js"></script>
+<script src="jsQR.js"></script>
 <script>
-const $ = (id) => document.getElementById(id); const S = localStorage;
+const $ = (id) => document.getElementById(id); const S = localStorage; const F = window.BI_FLAGS || {};
 const norm = (u) => { u = u.trim(); if (!/^https?:\/\//i.test(u)) u = 'http://' + u; return u.replace(/\/+$/, ''); };
 const target = (u, k) => u + '/' + (k ? '?key=' + encodeURIComponent(k) : '');
 $('url').value = S.getItem('islandUrl') || ''; $('key').value = S.getItem('islandKey') || '';
-// cold start with a saved island: go straight there (Back from the island returns to this screen)
 if (S.getItem('islandUrl') && !sessionStorage.getItem('launched') && !location.search.includes('setup')) {
   sessionStorage.setItem('launched', '1'); location.href = target(S.getItem('islandUrl'), S.getItem('islandKey'));
 }
 sessionStorage.setItem('launched', '1');
-$('f').onsubmit = async (e) => { e.preventDefault(); const u = norm($('url').value), k = $('key').value.trim();
-  try { new URL(u); } catch { $('err').textContent = 'That URL does not look right.'; return; }
-  S.setItem('islandUrl', u); S.setItem('islandKey', k); location.href = target(u, k); };
+const open = (u, k) => { S.setItem('islandUrl', u); S.setItem('islandKey', k); location.href = target(u, k); };
+$('f').onsubmit = (e) => { e.preventDefault(); const raw = $('url').value.trim();
+  const p = parsePair(raw); if (p) return open(p.url, p.key); // a whole pairing link pasted into the URL box works too
+  const u = norm(raw), k = $('key').value.trim(); try { new URL(u); } catch { $('err').textContent = 'That URL does not look right.'; return; } open(u, k); };
 $('forget').onclick = () => { S.removeItem('islandUrl'); S.removeItem('islandKey'); $('url').value = ''; $('key').value = ''; $('err').textContent = 'Forgotten.'; };
+// pairing link = <island url>/?key=<access key>
+function parsePair(t) { try { const u = new URL(String(t).trim()); const k = u.searchParams.get('key');
+  if (!/^https?:$/.test(u.protocol) || !k) return null; return { url: u.origin, key: k }; } catch { return null; } }
+let stream = null, raf = 0;
+function stopScan() { cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); stream = null; $('scan').style.display = 'none'; }
+$('stopscan').onclick = stopScan;
+$('scanbtn').onclick = async () => {
+  $('err').textContent = '';
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+  catch (e) { $('err').textContent = 'Camera not available (' + (e.name || e) + '). Allow camera access, or type the URL and key.'; return; }
+  const v = $('vid'); v.srcObject = stream; await v.play(); $('scan').style.display = 'flex';
+  const c = document.createElement('canvas'); const ctx = c.getContext('2d', { willReadFrequently: true });
+  const tick = () => { if (!stream) return;
+    if (v.readyState >= 2) { const w = Math.min(v.videoWidth, 800), h = Math.round(v.videoHeight * w / v.videoWidth); c.width = w; c.height = h; ctx.drawImage(v, 0, 0, w, h);
+      const q = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+      if (q && q.data) { const p = parsePair(q.data); if (p) { stopScan(); $('url').value = p.url; $('key').value = p.key; return open(p.url, p.key); } } }
+    raf = requestAnimationFrame(tick); };
+  tick();
+};
+// sideloaded APK only (F.selfUpdate is false in Play Store builds): offer a newer APK from GitHub Releases
+const newer = (a, b) => { const x = String(a).replace(/^v/, '').split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+if (F.selfUpdate && F.repo) fetch(`https://api.github.com/repos/${F.repo}/releases/latest`).then((r) => r.ok ? r.json() : null).then((j) => {
+  if (!j || !newer(j.tag_name, F.version)) return; const apk = (j.assets || []).find((a) => /\.apk$/i.test(a.name));
+  const u = $('upd'); u.style.display = 'block'; u.innerHTML = `⬆ Bot Island ${String(j.tag_name).replace(/^v/, '')} is available (you have ${F.version}). `;
+  const a = document.createElement('a'); a.href = apk ? apk.browser_download_url : j.html_url; a.textContent = apk ? 'Download the new APK' : 'See the release'; u.appendChild(a);
+}).catch(() => {});
 </script></body></html>

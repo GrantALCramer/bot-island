@@ -2,7 +2,7 @@
   "name": "botisland",
   "private": true,
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "start": "node cli.mjs",
@@ -10,13 +10,15 @@
     "setup": "node cli.mjs --setup",
     "dev": "vite",
     "build": "vite build",
-    "test:git": "tools/test-git-source.sh"
+    "test:git": "tools/test-git-source.sh",
+    "package:server": "bash tools/package-server.sh"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@react-three/postprocessing": "^2.19.1",
     "postprocessing": "^6.39.5",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
@@ -44,5 +46,8 @@
     "AGENT_REPORTING.md",
     "botisland.config.example.json",
     "README.md"
-  ]
+  ],
+  "botisland": {
+    "updateRepo": "GrantALCramer/bot-island"
+  }
 }

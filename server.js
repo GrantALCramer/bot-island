@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws';
 import crypto from 'node:crypto';
 import { loadConfig, redactUrl } from './lib/config.js';
 import { makeSources } from './lib/sources.js';
+import { makeUpdater } from './lib/update.js';
 import { Hooks, ChatStore, BOT_RE, MAX_TEXT, checkUrl, checkHeader, deliver, limiter, DEFAULT_HEADER, DEFAULT_PREFIX } from './lib/chat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,7 +55,9 @@ const readAllProfiles = () => { const a = readProfiles(); for (const p of readPu
 
 // ---------- fold real events ----------
 let CONFIG_FILE = null; let DATA_DIR = null; let reloadEvents = () => {};
-const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
+const PKG = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')); } catch { return {}; } })();
+const VERSION = PKG.version || '?';
+let UPDATER = null;
 let LOG = []; // every event (newest last), for the activity log panel
 function readEvents() {
   const bots = {}; const all = []; const log = []; const seen = new Set();
@@ -308,7 +311,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 function handle(req, res, isPublic) {
   const url = new URL(req.url, 'http://x');
   // install files (app manifest, icons, service worker) hold nothing private; Chrome fetches the manifest without cookies
-  const PWA_PUBLIC = url.pathname === '/manifest.webmanifest' || url.pathname === '/sw.js' || /^\/icons\/[\w.-]+\.png$/.test(url.pathname);
+  const PWA_PUBLIC = url.pathname === '/manifest.webmanifest' || url.pathname === '/sw.js' || /^\/icons\/[\w.-]+\.png$/.test(url.pathname) || url.pathname === '/island-report.sh'; // the reporting script holds no secrets
   // a bot self-registering its chat webhook authenticates with the island key as a Bearer header (never in the URL)
   const bearer = (url.pathname === '/api/chat/register' || url.pathname.startsWith('/api/ingest/')) && !url.searchParams.has('key') ? bearerAuth(req) : null;
   const auth = PWA_PUBLIC && !url.searchParams.has('key') ? 'ok' : bearer ?? checkAuth(req, isPublic, url); req.viaBearer = bearer === 'ok';
@@ -319,6 +322,8 @@ function handle(req, res, isPublic) {
     res.writeHead(302, { location: url.pathname + (q ? '?' + q : ''), 'set-cookie': `${COOKIE}=${COOKIE_VAL}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax${https ? '; Secure' : ''}`, 'cache-control': 'no-store', ...SEC_HEADERS });
     return res.end();
   }
+  if (url.pathname === '/island-report.sh') { res.writeHead(200, { 'content-type': 'text/x-shellscript; charset=utf-8', 'cache-control': 'no-store', ...SEC_HEADERS });
+    return fs.createReadStream(path.join(__dirname, 'island-report.sh')).on('error', () => res.end('# missing island-report.sh\nexit 1\n')).pipe(res); }
   if (url.pathname === '/agent.txt' || url.pathname === '/AGENT_REPORTING.md') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...SEC_HEADERS });
     return fs.createReadStream(SPEC).on('error', () => res.end('missing AGENT_REPORTING.md')).pipe(res);
@@ -334,6 +339,10 @@ function handle(req, res, isPublic) {
   if (url.pathname === '/api/info') { const g = SOURCES.find((x) => x.type === 'git');
     return json(res, 200, { version: process.env.BOTISLAND_APP_VERSION || VERSION, desktop: !!process.versions.electron, eventsDir: C.eventsDir, canEdit: !!CONFIG_FILE,
       git: g ? { url: redactUrl(g.url), branch: g.branch, hasToken: !!(g.tokenFile && fs.existsSync(g.tokenFile)), ok: !g.error, error: g.error, lastSync: g.last } : null }); }
+  if (url.pathname === '/api/update' && req.method === 'GET') return json(res, 200, UPDATER ? UPDATER.status() : { enabled: false });
+  if (url.pathname === '/api/update/check' || url.pathname === '/api/update/apply') return updateRoute(req, res, isPublic, url.pathname);
+  if (url.pathname === '/api/pair' && req.method === 'GET') return json(res, 200, { remote: !!ACCESS_KEY, key: ACCESS_KEY || null });
+  if (url.pathname === '/api/key/rotate') return rotateRoute(req, res, isPublic);
   if (url.pathname === '/api/config/git') return gitRoute(req, res, isPublic);
   if (url.pathname === '/api/config/events-dir') return eventsDirRoute(req, res, isPublic);
   if (url.pathname === '/api/bots/custom') return customRoute(req, res, isPublic);
@@ -379,6 +388,28 @@ async function guardedJson(req, res, isPublic, lim) {
   const { body, bad, tooBig } = await readJson(req, 2048);
   if (tooBig) { json(res, 413, { error: 'too big' }); return null; } if (bad || !body || typeof body !== 'object') { json(res, 400, { error: 'bad JSON' }); return null; }
   return body;
+}
+const updLimit = limiter(10, 60000);
+// update notice + one-click update (lib/update.js); only key holders ever reach these routes
+async function updateRoute(req, res, isPublic, p) {
+  const body = await guardedJson(req, res, isPublic, updLimit); if (!body) return;
+  if (!UPDATER) return json(res, 409, { error: 'update checks are off' });
+  if (p === '/api/update/check') { await UPDATER.check(); return json(res, 200, UPDATER.status()); }
+  const r = UPDATER.apply(); return json(res, r.error ? 409 : 200, { ...r, ...UPDATER.status() });
+}
+// rotate the access key: the old key and every cookie made from it stop working at once; this browser gets a new cookie
+async function rotateRoute(req, res, isPublic) {
+  const body = await guardedJson(req, res, isPublic, cfgEditLimit); if (!body) return;
+  if (!ACCESS_KEY || !C.remote?.keyFile) return json(res, 409, { error: 'remote access is off, so there is no key to rotate' });
+  if (body.confirm !== true) return json(res, 400, { error: 'confirm required' });
+  const k = crypto.randomBytes(32).toString('base64url');
+  fs.writeFileSync(C.remote.keyFile, k + '\n', { mode: 0o600 }); try { fs.chmodSync(C.remote.keyFile, 0o600); } catch {}
+  ACCESS_KEY = k; COOKIE_VAL = crypto.createHmac('sha256', k).update('botsim-cookie-v1').digest('base64url');
+  for (const c of wss.clients) c.terminate(); // open pages reconnect with their (now invalid) cookie and get locked out
+  console.log('[auth] access key rotated');
+  const https = isPublic ? req.headers['x-forwarded-proto'] === 'https' : false;
+  res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'set-cookie': `${COOKIE}=${COOKIE_VAL}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax${https ? '; Secure' : ''}`, ...SEC_HEADERS });
+  res.end(JSON.stringify({ ok: true, key: k }));
 }
 const customLimit = limiter(60, 60000); const cfgEditLimit = limiter(10, 60000);
 // shared git repo from Island settings: {url, branch?, token?, clearToken?} or {remove: true}. The token is written to
@@ -528,7 +559,7 @@ wss.on('connection', (ws) => { ws.send(JSON.stringify(snapshot())); ws.send(JSON
 // ---------- remote ingest: bots on other machines report with the island key as a Bearer header ----------
 //   POST /api/ingest/report   {bot, state, task?, action?, with?}       -> appended to <eventsDir>/<bot>.jsonl
 //   POST /api/ingest/reply    {bot, messageId, text}                    -> chat reply, like reply.sh
-//   POST /api/ingest/profiles {profiles:[{name, avatarShape, avatarColor, title?}]} -> replaces the pushed profile list
+//   POST /api/ingest/profiles {profiles:[{name, avatarShape, avatarColor, title?}]} -> replaces the pushed profile list (merge: true = only update these names)
 async function ingestRoute(req, res, p) {
   if (!req.viaBearer) return json(res, 401, { error: 'Authorization: Bearer <island key> required' });
   if (req.method !== 'POST') { res.setHeader('allow', 'POST'); return json(res, 405, { error: 'POST only' }); }
@@ -547,7 +578,9 @@ async function ingestRoute(req, res, p) {
   if (p === '/api/ingest/profiles') {
     if (!Array.isArray(body.profiles)) return json(res, 400, { error: 'profiles[] required' });
     const list = body.profiles.slice(0, 100).filter((x) => x && x.name).map((x) => ({ name: str(x.name, 60), agentId: str(x.agentId, 80) || undefined, title: str(x.title, 120), shape: str(x.avatarShape ?? x.shape, 30) || null, color: str(x.avatarColor ?? x.color, 30) || null }));
-    fs.writeFileSync(PUSHED_FILE, JSON.stringify(list, null, 1)); profiles = readAllProfiles(); broadcast(); return json(res, 200, { ok: true, count: list.length });
+    let out = list; if (body.merge === true) { let old = []; try { old = JSON.parse(fs.readFileSync(PUSHED_FILE, 'utf8')); } catch {} // merge: one bot updates only its own entry
+      out = [...old.filter((o) => !list.some((n) => slug(n.name) === slug(o.name))), ...list].slice(-100); }
+    fs.writeFileSync(PUSHED_FILE, JSON.stringify(out, null, 1)); profiles = readAllProfiles(); broadcast(); return json(res, 200, { ok: true, count: list.length });
   }
   if (p === '/api/ingest/reply') { // same lines reply.sh writes locally: the reply + a 'replied' status for the message
     const bot = slug(str(body.bot, 60)); const mid = str(body.messageId, 80); const text = str(body.text, 2000).replace(/\r\n/g, '\n').trim();
@@ -565,6 +598,10 @@ export async function startServer(config, dataDir, opts = {}) {
   C = config; CONFIG_FILE = opts.configFile || null; DATA_DIR = dataDir;
   if (C.remote?.enabled) { ACCESS_KEY = loadKey(C.remote.keyFile); COOKIE_VAL = crypto.createHmac('sha256', ACCESS_KEY).update('botsim-cookie-v1').digest('base64url'); }
   SOURCES = makeSources(C, dataDir);
+  const repo = process.env.BOTISLAND_UPDATE_REPO ?? PKG.botisland?.updateRepo ?? '';
+  UPDATER = makeUpdater({ version: process.env.BOTISLAND_APP_VERSION || VERSION, repo: /^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : '', dataDir,
+    enabled: C.updateCheck !== false && !/^(0|off|false|no)$/i.test(process.env.BOTISLAND_UPDATE_CHECK || '') && !process.versions.electron });
+  UPDATER.start();
   HOOKS = new Hooks(C.chatWebhooksFile);
   CHAT = new ChatStore(C.chatDir, () => SOURCES.filter((s) => s.type === 'git' && s.cache).map((s) => path.join(s.cache, 'chat')));
   fs.mkdirSync(C.chatDir, { recursive: true }); CHAT.readAll();
@@ -594,13 +631,13 @@ export async function startServer(config, dataDir, opts = {}) {
     console.log(`Remote endpoint on http://${C.remote.bind || '127.0.0.1'}:${C.remote.port} (access key always required; key file ${C.remote.keyFile})`);
   }
   const close = () => new Promise((done) => {
-    timers.forEach(clearInterval); SOURCES.forEach((s) => s.stop()); chatWatch?.close();
+    timers.forEach(clearInterval); UPDATER?.stop(); SOURCES.forEach((s) => s.stop()); chatWatch?.close();
     for (const c of wss.clients) c.terminate();
     let n = pub ? 2 : 1; const fin = () => { if (--n === 0) done(); };
     server.close(fin); server.closeAllConnections?.(); if (pub) { pub.close(fin); pub.closeAllConnections?.(); }
     setTimeout(done, 2000).unref();
   });
-  return { localUrl, remoteUrl: pub ? `http://127.0.0.1:${C.remote.port}` : null, close, accessKey: ACCESS_KEY };
+  return { localUrl, remoteUrl: pub ? `http://127.0.0.1:${C.remote.port}` : null, close, get accessKey() { return ACCESS_KEY; } };
 }
 
 // `node server.js ...` runs the server alone (no browser, no tunnel). The launcher is cli.mjs.

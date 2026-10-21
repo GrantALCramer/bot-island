@@ -11,15 +11,20 @@ and when it's asleep it's in bed. Click a blob to see what it's doing and chat w
 - **Blob styles:** Avatar match (shape + color from each bot's profile), Classic, Gem, Voxel and Jelly.
 - **Apps:** browser, Windows desktop app, Android app, and an installable phone web app (PWA).
 
-| | |
-|---|---|
-| ![Tropical](docs/screenshots/tropical.png) | ![Old West](docs/screenshots/west.png) |
-| ![City](docs/screenshots/city.png) | ![Crystal Cave](docs/screenshots/cave.png) |
-| ![Haunted Graveyard](docs/screenshots/haunted.png) | ![Settings](docs/screenshots/settings.png) |
+![Bot Island demo](docs/screenshots/demo.gif)
+
+**[⬇ Download the latest release](../../releases/latest)** (Windows installer, Android APK, Linux server package)
+
+| | | |
+|---|---|---|
+| ![Tropical](docs/screenshots/tropical.png) | ![Moon Base](docs/screenshots/moon.png) | ![Antarctica](docs/screenshots/antarctica.png) |
+| ![Atlantis](docs/screenshots/atlantis.png) | ![Jungle](docs/screenshots/jungle.png) | ![Sakura](docs/screenshots/sakura.png) |
+| ![Old West](docs/screenshots/west.png) | ![City](docs/screenshots/city.png) | ![Crystal Cave](docs/screenshots/cave.png) |
+| ![Haunted Graveyard](docs/screenshots/haunted.png) | ![Heaven](docs/screenshots/heaven.png) | ![Settings](docs/screenshots/settings.png) |
 
 ## Contents
 [Choose where to host](#choose-where-to-host-your-island) · [Phone setup](#connect-from-your-phone) ·
-[Good to know](#downsides--good-to-know) · [Quick start](#quick-start) · [Linux server / Proxmox](#linux-server-docker-systemd-proxmox) ·
+[Good to know](#downsides--good-to-know) · [Updates](#updating) · [Quick start](#quick-start) · [Linux server / Proxmox](#linux-server-docker-systemd-proxmox) ·
 [Windows](#windows) · [macOS](#macos) · [Configuration](#configuration) · [How bots report](#how-bots-report-status) ·
 [Chat](#chat-with-your-bots) · [Phone](#phone-android-app-and-pwa) · [Remote access](#remote-access-and-the-access-key) ·
 [Development](#development)
@@ -38,7 +43,7 @@ you open it from your PC or phone. Pick one of these three options:
 network (one sign-in) that lets your bots, PC and phone reach each other without opening ports on your router.
 
 ### Option 1 (recommended): your own always-on PC with the Windows app
-1. **Install the app:** run `BotIsland-Setup-<version>.exe` from the Releases page. SmartScreen will warn because the
+1. **Install the app:** run `BotIsland-Setup-<version>.exe` from the [latest release](../../releases/latest). SmartScreen will warn because the
    app isn't code-signed: click *More info → Run anyway*.
 2. **Keep it running:** right-click the Bot Island icon in the system tray and tick **Start with Windows** (it then
    starts quietly in the tray when you log in). In *Settings → System → Power* set **Sleep** to *Never* when plugged in.
@@ -57,15 +62,18 @@ network (one sign-in) that lets your bots, PC and phone reach each other without
    - Island URL: <your island URL, e.g. https://my-pc.my-tailnet.ts.net>
    - Access key: <your access key>
    Steps:
-   1. Install Tailscale on your computer and join my tailnet. Give me the login link to approve.
-      (If your computer has no TUN device, run tailscaled in userspace mode with a SOCKS5/HTTP proxy
-      and send island requests through it.)
-   2. Read <island URL>/agent.txt (send "Authorization: Bearer <access key>") and follow it.
-   3. Set up a status-reporting skill/script so that every time your state changes (working, researching,
-      thinking, waiting_on_user, error, done, idle) you POST {"bot","state","task","action"} to
-      <island URL>/api/ingest/report with the header "Authorization: Bearer <access key>".
-   4. Save the URL and key in a private config file (chmod 600), never in a shared repo or chat.
-   5. Send one test report and tell me when you appear on the island.
+   1. Install Tailscale on your computer and join my tailnet; give me the login link to approve.
+      If your computer has no TUN device, run tailscaled in userspace mode with a SOCKS5 proxy
+      on 127.0.0.1:1055 and use ISLAND_PROXY=socks5h://127.0.0.1:1055 below.
+   2. Download the reporting script from the island and set it up (it asks for the key; keep it private):
+        curl -fsSLO <island URL>/island-report.sh && chmod +x island-report.sh
+        ./island-report.sh setup <island URL>
+      (add ISLAND_PROXY=... in front of these commands if you needed the proxy in step 1)
+   3. Read <island URL>/agent.txt (section "Method C") and make a skill so that whenever your state changes
+      (working, researching, thinking, waiting_on_user, error, done, idle) you run:
+        ./island-report.sh "<your name>" <state> "<short task>" "<what you just did>"
+   4. Optional: ./island-report.sh profile "<your name>" <avatar shape> <avatar color>
+   5. Send one test report and tell me when you appear on the island. Never paste the key into chat or a repo.
    ```
    Do the same for each bot, or ask one bot to set it up for all of them if they share a computer.
 
@@ -74,11 +82,12 @@ No always-on PC needed. Paste this into your Grok Bot:
 
 ```text
 Please host Bot Island for me on your computer.
-1. Clone https://github.com/<owner>/bot-island and run it with the remote endpoint on
-   (BOTISLAND_REMOTE=1 npm start), in the background.
+1. Download the latest botisland-server-<version>.tar.gz from <this repo's URL>/releases/latest, unpack it,
+   and run it in the background with the remote endpoint on: BOTISLAND_REMOTE=1 BOTISLAND_OPEN=0 node server.js
+   (needs Node.js 18+; or clone the repo, npm install, and run BOTISLAND_REMOTE=1 BOTISLAND_OPEN=0 npm start -- --yes).
 2. Add a keep-alive check (e.g. a scheduled job every few minutes) that restarts it if it isn't running.
 3. Install Tailscale, join my tailnet (give me the login link), and run `tailscale serve --bg 8797`.
-4. Set up status reporting for all my bots to this island (see /agent.txt).
+4. Set up status reporting for all my bots with island-report.sh (see /agent.txt, "Method C").
 5. Tell me the island URL. Give me the access key privately, and don't post it anywhere else.
 ```
 Downsides:
@@ -92,21 +101,34 @@ Use `docker compose up -d --build` or `deploy/install-debian.sh --tailscale`. Se
 
 ## Connect from your phone
 1. Install the **Tailscale** app on your phone and sign in with the same account as your island.
-2. Install the Android app: download `BotIsland-android-<version>.apk` from the Releases page and allow
-   *Install unknown apps* when asked (details in [Phone](#phone-android-app-and-pwa)). On iPhone, open the island
-   in Safari and use *Share → Add to Home Screen*.
-3. Open the app and enter your **island URL** and **access key**.
-
-*Planned:* QR-code pairing so you can scan instead of typing.
+2. Install the Android app: download `BotIsland-android-<version>.apk` from the [latest release](../../releases/latest)
+   and allow *Install unknown apps* when asked (details in [Phone](#phone-android-app-and-pwa)).
+3. On your PC, open the island → **⚙ Island settings → Pair a phone or PC**, check the address (your Tailscale URL)
+   and press **Show pairing QR**. In the app tap **📷 Scan QR**. Done: the URL and key are filled in for you.
+   (You can still type the URL and key by hand.) Hide the QR afterwards.
+4. **iPhone:** scan the same QR with the camera app; it opens the island in Safari. Then *Share → Add to Home Screen*.
+5. **Another PC with the Windows app:** press **Copy pairing link**, then in that PC's tray menu choose
+   **Pair with link from clipboard…**.
 
 ## Downsides / good to know
 - **Tailscale is required on every device** that opens the island (PC, phone, and each bot's computer).
 - **The host must stay awake.** If the PC sleeps or turns off, bots can't report and your phone can't connect.
-- **The access key is full admin access.** Never show it (or the `?key=` URL) in screenshots, screen recordings or
-  reels. If it leaks, delete the `access-key` file and restart to get a new one.
+- **The access key is full admin access** (including updates). Never show it, the pairing QR or a `?key=` link in
+  screenshots, screen recordings or reels. If it leaks: **Island settings → Pair a phone or PC → Rotate access key**.
+  The old key stops working at once, so re-pair your devices and run `island-report.sh setup` again on your bots.
 - **The apps aren't code-signed yet.** Windows shows a SmartScreen warning and Android asks you to allow unknown apps.
-- *Planned:* an in-app "Update available" notice. For now, update by installing the new release over the old one
-  (your data is kept) or with `git pull`.
+
+## Updating
+- **Island (server):** when a new release is out, key holders see an **Update available** banner. On a Linux/Proxmox
+  install (`deploy/install-debian.sh`) press **Update now**: it downloads that official release, checks its SHA-256,
+  keeps the previous version, restarts and rolls back automatically if the new one doesn't start. Docker shows the
+  command to run (`git pull && docker compose up -d --build`); other installs show `git pull` steps.
+- **Windows app:** checks GitHub Releases, asks before downloading, then **Restart to install** (tray → *Check for
+  updates…*). Your data is kept. The portable .exe doesn't self-update.
+- **Android app (APK):** the setup screen shows a link when a newer APK is out. A future Play Store build updates
+  through the Store instead (`npm run apk:play` builds with the self-update check off).
+- Update checks call the GitHub API, so they only work once the repository is public (or with a `GITHUB_TOKEN` for
+  the server: put `GITHUB_TOKEN=...` in `/etc/botisland/update.env`). Turn them off with `BOTISLAND_UPDATE_CHECK=0`.
 
 ## Quick start
 Needs **Node.js 18+** and git.
@@ -161,7 +183,7 @@ Copy the repo to `/opt/botisland`, run `npm ci && npx vite build`, create a `bot
 to change the data dir, port or bind address.
 
 ## Windows
-- **Desktop app (recommended):** run `BotIsland-Setup-<version>.exe` from the Releases page (or
+- **Desktop app (recommended):** run `BotIsland-Setup-<version>.exe` from the [latest release](../../releases/latest) (or
   `BotIsland-Portable-<version>.exe`, no install). Windows SmartScreen may warn because the app isn't code-signed:
   *More info → Run anyway*. It runs the island locally in its own window with a tray icon; data in `%APPDATA%\BotIsland`.
   Tray menu: **Allow bot connections** (key-protected port 8797), **Copy access key**, **Start with Windows**, and **Server**
@@ -204,6 +226,8 @@ Every bot appends one JSON line per change to `<events folder>/<bot>.jsonl`:
 States: `working`, `researching`, `thinking`, `waiting_on_user`, `error`, `done`, `idle`. The full spec for bots is
 **[AGENT_REPORTING.md](AGENT_REPORTING.md)**, also served by every island at **`/agent.txt`**, so you can tell a bot
 "read `<island url>/agent.txt` and report your status there".
+- **Other machines over HTTP (Tailscale etc.):** `island-report.sh` (download it from `<island url>/island-report.sh`,
+  then `./island-report.sh setup <island url>`); see Method C in AGENT_REPORTING.md.
 - **Same machine:** `./report.sh "Nova" working "Drafting the report"` (Windows: `report.ps1`).
 - **Other machines, shared folder:** point a `folder` source at a Syncthing/Dropbox folder.
 - **Other machines, shared git repo:** bots push with `report-git.sh` to a private repo you own; the island pulls it
@@ -220,10 +244,10 @@ Webhook URLs and keys are stored only in the webhooks file (chmod 600) and never
 
 ## Phone: Android app and PWA
 **Android app (APK).** A small Capacitor app that opens *your* island full screen.
-1. Download `BotIsland-android-<version>.apk` to the phone (Releases page, or copy it over).
+1. Download `BotIsland-android-<version>.apk` to the phone ([latest release](../../releases/latest), or copy it over).
 2. Open it; allow *Install unknown apps* for your browser/file manager when asked; tap **Install**
    (Play Protect may warn about an unknown developer: *More details → Install anyway*).
-3. On first launch enter the **island URL** (e.g. `https://island.<tailnet>.ts.net` or `http://192.168.1.20:8797`)
+3. On first launch tap **Scan QR** (see [Connect from your phone](#connect-from-your-phone)) or enter the **island URL** (e.g. `https://island.<tailnet>.ts.net` or `http://192.168.1.20:8797`)
    and the **access key**. It's remembered; press **Back** on the island to return to the setup screen to change it.
 Plain `http://` on a LAN or Tailscale IP is allowed. Build it yourself:
 `cd android-app && npm ci && npx cap sync android && cd android && ./gradlew assembleDebug` (JDK 21 + Android SDK 35).
@@ -233,7 +257,7 @@ Plain `http://` on a LAN or Tailscale IP is allowed. Build it yourself:
 ## Remote access and the access key
 The access key is in `<data dir>/access-key` (Docker: `data/access-key`; LXC: `/var/lib/botisland/access-key`).
 Open `<url>/?key=<key>` once; the browser keeps a cookie. Bots and scripts send `Authorization: Bearer <key>`.
-Keep the key secret; anyone with it can see your island and chat with your bots. Delete the file and restart to rotate it.
+Keep the key secret; anyone with it can see your island and chat with your bots. Rotate it in **Island settings → Pair a phone or PC → Rotate access key** (or delete the file and restart).
 - **Tailscale (recommended):** on the island machine `tailscale serve --bg 8797` → `https://<host>.<tailnet>.ts.net`,
   reachable only by your devices. Free for personal use.
 - **Reverse proxy** (Caddy, nginx, Traefik, Nginx Proxy Manager) with HTTPS in front of `127.0.0.1:8797`. WebSockets

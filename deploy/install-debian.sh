@@ -21,9 +21,12 @@ cd /opt/botisland
 npm ci && npx vite build && npm prune --omit=dev
 chown -R botisland:botisland /var/lib/botisland
 install -m 644 deploy/botisland.service /etc/systemd/system/botisland.service
+install -m 644 deploy/botisland-update.path deploy/botisland-update.service /etc/systemd/system/
+install -m 755 deploy/update.sh /usr/local/lib/botisland-update.sh
 sed -i "s/^Environment=BOTISLAND_REMOTE_BIND=.*/Environment=BOTISLAND_REMOTE_BIND=$BIND/" /etc/systemd/system/botisland.service
 systemctl daemon-reload
 systemctl enable --now botisland
+systemctl enable --now botisland-update.path
 for i in $(seq 20); do [ -s /var/lib/botisland/access-key ] && break; sleep 0.5; done
 if [ "$TS" = 1 ]; then
   command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh

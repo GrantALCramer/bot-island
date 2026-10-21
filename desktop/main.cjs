@@ -5,6 +5,7 @@
 //   "key": "<island access key>" }. On launch the first server that answers is opened (key traded for a cookie, so no
 //   login prompt); if none answers, the built-in local island starts instead. Tray menu: switch server / edit settings.
 const { app, BrowserWindow, Menu, shell, dialog, Tray, nativeImage, clipboard } = require('electron');
+let autoUpdater = null; try { ({ autoUpdater } = require('electron-updater')); } catch {}
 const path = require('node:path'); const fs = require('node:fs'); const net = require('node:net'); const { pathToFileURL } = require('node:url');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
@@ -95,14 +96,47 @@ function buildTray() {
     tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Show Bot Island', click: () => win && (win.show(), win.focus()) },
       { label: 'Server', submenu: [...servers, { label: 'This PC (local island)', type: 'radio', checked: !current?.remote, click: () => go('local') }, { type: 'separator' },
         { label: 'Reconnect', click: () => go() }, { label: 'Edit server settings…', click: () => { if (!fs.existsSync(REMOTE_FILE())) writeRemote({ enabled: false, servers: [], key: '' }); shell.openPath(REMOTE_FILE()); } }] },
-      { label: 'Open in browser', click: () => current && shell.openExternal(current.url) }, { type: 'separator' },
+      { label: 'Open in browser', click: () => current && shell.openExternal(current.url) },
+      { label: 'Pair with link from clipboard…', click: () => pairFromClipboard() },
+      { label: updState === 'ready' ? 'Restart to install update' : updState === 'downloading' ? 'Downloading update…' : 'Check for updates…', enabled: updState !== 'downloading', click: () => manualCheck() }, { type: 'separator' },
       { label: 'Allow bot connections (port 8797, needs access key)', type: 'checkbox', checked: !!readIslandCfg().remote?.enabled, click: (m) => setAllowBots(m.checked).catch((e) => dialog.showErrorBox('Bot Island', String(e?.message || e))) },
       ...(island?.accessKey ? [{ label: 'Copy access key', click: () => clipboard.writeText(island.accessKey) }] : []),
       { label: 'Start with Windows', type: 'checkbox', checked: !!readDesk().startWithWindows, click: (m) => setStartWithWindows(m.checked) }, { type: 'separator' }, { label: 'Quit', click: () => app.quit() }]));
   } catch {}
 }
+// ---------- pairing: paste the link from Island settings -> Pair a phone or PC (https://host/?key=...) ----------
+function parsePairLink(t) { try { const u = new URL(String(t || '').trim()); const key = u.searchParams.get('key');
+  if (!/^https?:$/.test(u.protocol) || !key || key.length < 16) return null; return { server: u.origin, key }; } catch { return null; } }
+async function pairFromClipboard() {
+  const p = parsePairLink(clipboard.readText());
+  if (!p) return dialog.showMessageBox(win, { type: 'info', message: 'No pairing link on the clipboard', detail: 'On the island open Island settings → Pair a phone or PC → Copy pairing link, then choose this again.' });
+  const { response } = await dialog.showMessageBox(win, { type: 'question', buttons: ['Pair', 'Cancel'], defaultId: 0, cancelId: 1, message: `Connect this app to ${p.server}?`, detail: 'The app will open that island on start (this PC\'s own island stays available in the tray → Server menu).' });
+  if (response !== 0) return;
+  const r = readRemote() || { servers: [] }; writeRemote({ ...r, enabled: true, servers: [p.server, ...(r.servers || []).filter((x) => x !== p.server)], key: p.key, prefer: p.server });
+  clipboard.writeText(''); go(p.server);
+}
+// ---------- updates (installer build only; GitHub Releases via electron-updater) ----------
+const CAN_UPDATE = !!autoUpdater && app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR;
+let updState = '';
+function setupUpdater() {
+  if (!CAN_UPDATE) return; autoUpdater.autoDownload = false; autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', async (i) => { updState = 'available'; buildTray();
+    const { response } = await dialog.showMessageBox(win, { type: 'info', buttons: ['Download', 'Later'], defaultId: 0, cancelId: 1, message: `Bot Island ${i.version} is available`, detail: `You have ${app.getVersion()}. Download it now? Your island data is kept.` });
+    if (response === 0) { updState = 'downloading'; buildTray(); autoUpdater.downloadUpdate().catch(() => {}); } });
+  autoUpdater.on('update-downloaded', async (i) => { updState = 'ready'; buildTray();
+    const { response } = await dialog.showMessageBox(win, { type: 'info', buttons: ['Restart now', 'Later'], defaultId: 0, cancelId: 1, message: `Bot Island ${i.version} is ready`, detail: 'Restart to install it (or it installs the next time you quit).' });
+    if (response === 0) autoUpdater.quitAndInstall(); });
+  autoUpdater.on('error', () => { if (updState === 'downloading') updState = ''; buildTray(); });
+  const check = () => autoUpdater.checkForUpdates().catch(() => {}); setTimeout(check, 15000); setInterval(check, 6 * 3600e3);
+}
+async function manualCheck() {
+  if (!CAN_UPDATE) return dialog.showMessageBox(win, { type: 'info', message: 'Updates', detail: 'The portable version can\'t update itself: download the new one from the Releases page.' });
+  if (updState === 'ready') return autoUpdater.quitAndInstall();
+  try { const r = await autoUpdater.checkForUpdates(); if (!r || !r.isUpdateAvailable) dialog.showMessageBox(win, { type: 'info', message: `You're up to date (${app.getVersion()}).` }); }
+  catch (e) { dialog.showMessageBox(win, { type: 'warning', message: 'Could not check for updates', detail: String(e?.message || e).slice(0, 300) }); }
+}
 app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(null); setupUpdater();
   try { await go(); } catch (e) { dialog.showErrorBox('Bot Island could not start', String(e?.stack || e)); app.quit(); }
 });
 app.on('before-quit', (e) => { if (quitting || !island) return; e.preventDefault(); quitting = true; // stop the server, then really quit

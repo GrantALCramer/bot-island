@@ -1,18 +1,24 @@
 {
   "name": "botisland-android",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Bot Island Android app (Capacitor shell that connects to your self-hosted island)",
   "license": "MIT",
   "scripts": {
-    "sync": "npx cap sync android",
-    "apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
+    "sync": "node flags.mjs && npx cap sync android",
+    "apk": "node flags.mjs && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "apk:play": "node flags.mjs --play && npx cap sync android && cd android && ./gradlew assembleRelease",
+    "bundle:play": "node flags.mjs --play && npx cap sync android && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",
-    "@capacitor/core": "^7.6.9"
+    "@capacitor/core": "^7.6.9",
+    "jsqr": "^1.4.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9"
+  },
+  "botisland": {
+    "updateRepo": "GrantALCramer/bot-island"
   }
 }
