@@ -48,7 +48,22 @@ export const BLOB_STYLES = {
   voxel: { label: 'Voxel', hint: 'Chunky pixel blocks', kind: (s) => 'vox_' + avatarShape(s), build: (n, k) => { const g = voxels(n); g.computeBoundingBox(); return registerKind(k, g, { flat: true, front: g.boundingBox.max.z, mat: (c) => <meshStandardMaterial color={c} roughness={0.75} flatShading /> }); } },
   jelly: { label: 'Jelly', hint: 'Glossy see-through gummy', kind: (s) => 'jel_' + avatarShape(s), build: (n, k) => registerKind(k, extruded(n, { seg: 8 }), {
     mat: (c) => QUALITY.lite ? <meshStandardMaterial color={c} roughness={0.08} transparent opacity={0.7} /> : <meshPhysicalMaterial color={c} roughness={0.05} clearcoat={1} clearcoatRoughness={0.05} transparent opacity={0.8} emissive={c} emissiveIntensity={0.18} /> }) },
+  ghost: { label: 'Ghost', hint: 'Floaty glowing sheet ghosts', kind: () => 'ghost_sheet', build: (n, k) => buildGhost(k) },
 };
+// ---------- Ghost: lathed sheet ghost (dome head, scalloped hem) with a shader hem sway; glows in the bot's colour ----------
+export const GHOST_T = { value: 0 };
+function buildGhost(kind) {
+  const pts = []; const R = 0.42, H = 0.5; // dome centre height; hem at y=0, sheet flares a little toward the hem
+  for (let i = 0; i <= 14; i++) { const a = (i / 14) * Math.PI / 2; pts.push(new THREE.Vector2(Math.max(0.001, Math.sin(a) * R), H + Math.cos(a) * R)); }
+  for (let i = 1; i <= 10; i++) { const k = i / 10; pts.push(new THREE.Vector2(R + 0.06 * k * k, H * (1 - k))); }
+  const g = new THREE.LatheGeometry(pts, 48); const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < 0.16) { const a = Math.atan2(pos.getZ(i), pos.getX(i)); pos.setY(i, y + (0.16 - y) / 0.16 * 0.075 * (1 + Math.cos(a * 7))); } } // scallops
+  g.computeVertexNormals(); g.computeBoundingBox(); const top = g.boundingBox.max.y;
+  const sway = (sh) => { sh.uniforms.uT = GHOST_T; sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\nfloat gh = clamp(1.0 - position.y / 0.55, 0.0, 1.0); gh *= gh; float ga = atan(position.z, position.x);\ntransformed.x += sin(uT * 2.1 + ga * 3.0) * 0.045 * gh; transformed.z += cos(uT * 1.7 + ga * 2.0) * 0.035 * gh;'); };
+  const mat = (c) => <meshStandardMaterial key={'gh' + c} color={c} emissive={c} emissiveIntensity={0.45} roughness={0.55} transparent opacity={0.85} depthWrite side={THREE.DoubleSide} onBeforeCompile={sway} customProgramCacheKey={() => 'ghost-sway'} />;
+  SHAPES[kind] = { eye: [0.13, 0.62, Math.sqrt(R * R - 0.12 * 0.12) - 0.01], ex: 0, geo: g, mat, float: true }; TOP[kind] = top; return kind;
+}
 export const DEFAULT_BLOB_STYLE = 'avatar';
 export function kindFor(style, shape) { const S = BLOB_STYLES[style] || BLOB_STYLES[DEFAULT_BLOB_STYLE]; const k = S.kind(shape); if (!SHAPES[k] && S.build) S.build(k.slice(k.indexOf('_') + 1), k); return k; }
 export const AV_KINDS = SHAPE_ORDER.map((n) => kindFor('avatar', n));
@@ -65,7 +80,10 @@ function legacyShapeKind(s) {
   if (['blob'].includes(s)) return 'blob';
   return 'sphere';
 }
-export function Body({ kind, color }) {
+// key by kind: switching blob style swaps <mesh geometry={...}> for <mesh><sphereGeometry/></mesh> on the same element; without a remount
+// R3F resets the removed geometry prop to an empty BufferGeometry after the child attaches, leaving an invisible body (only eyes/tag).
+export function Body(p) { return <BodyShape key={p.kind} {...p} />; }
+function BodyShape({ kind, color }) {
   const m = <meshStandardMaterial color={color} roughness={0.42} metalness={0.02} />;
   if (SHAPES[kind]?.geo) return <mesh geometry={SHAPES[kind].geo} castShadow>{SHAPES[kind].mat ? SHAPES[kind].mat(color) : m}</mesh>;
   switch (kind) {
@@ -414,7 +432,7 @@ export default function Blob({ bot, target, selected, onSelect, showBubble, posi
     const k = poseK.current;
     rot.current = lerpAngle(rot.current, faceTo, Math.min(1, dt * 8));
     g.position.set(p.x + ox, p.y + y, p.z + oz); g.rotation.y = rot.current;
-    b.scale.set(sxz, sy, sxz); b.rotation.set(-Math.PI / 2 * k + pitch, 0, tilt + swing); if (pitch) b.position.y = 0.42 * k + 0.4 * Math.abs(Math.sin(pitch / 2)); b.position.set(0, 0.42 * k, 0);
+    b.scale.set(sxz, sy, sxz); b.rotation.set(-Math.PI / 2 * k + pitch, 0, tilt + swing); if (pitch) b.position.y = 0.42 * k + 0.4 * Math.abs(Math.sin(pitch / 2)); b.position.set(0, 0.42 * k, 0); if (SHAPES[kind].float) { GHOST_T.value = t - seed; b.position.y += (0.1 + Math.sin(t * 1.6) * 0.06) * (1 - k); }
     if (eyes.current) {
       let ey = 1; if (st === 'stale') ey = 0.12; else { const kk = t - blinkAt.current; const dur = k > 0.5 ? 0.45 : 0.14; if (kk > 0 && kk < dur) ey = 0.12; else if (kk >= dur) blinkAt.current = t + 2.5 + Math.random() * 3; }
       eyes.current.scale.y = ey;

@@ -16,8 +16,8 @@ function LegacyHat({ kind, hat }) { const y = TOP[kind] - 0.02;
   return null;
 }
 
-const STYLE = new URLSearchParams(location.search).get('style'); // ?style=avatar|gem|voxel|jelly : fitted hats on that blob style
-const KINDS = STYLE && STYLE !== 'classic' ? SHAPE_ORDER.map((n) => kindFor(STYLE, n)) : Object.keys(TOP); const HATS = ['tophat', 'crown', 'beanie', 'party', 'flower', 'cap'];
+const STYLE = new URLSearchParams(location.search).get('style'); // ?style=avatar|gem|voxel|jelly|ghost : fitted hats on that blob style
+const KINDS = STYLE && STYLE !== 'classic' ? [...new Set(SHAPE_ORDER.map((n) => kindFor(STYLE, n)))] : Object.keys(TOP); const HATS = ['tophat', 'crown', 'beanie', 'party', 'flower', 'cap'];
 function Cell({ kind, hat, legacy, x, z, squash, body = '#7aa7e8', hc }) { const ref = useRef();
   return <group position={[x, 0, z]} scale={squash ? [1.12, 0.82, 1.12] : 1}><group ref={ref}><Body kind={kind} color={body} /></group>
     {legacy ? <LegacyHat kind={kind} hat={hat} /> : <Hat kind={kind} hat={hat} bodyRef={ref} color={resolveHatColor(hc, body)} />}</group>; }
