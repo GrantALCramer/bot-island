@@ -65,7 +65,7 @@ function legacyShapeKind(s) {
   if (['blob'].includes(s)) return 'blob';
   return 'sphere';
 }
-function Body({ kind, color }) {
+export function Body({ kind, color }) {
   const m = <meshStandardMaterial color={color} roughness={0.42} metalness={0.02} />;
   if (SHAPES[kind]?.geo) return <mesh geometry={SHAPES[kind].geo} castShadow>{SHAPES[kind].mat ? SHAPES[kind].mat(color) : m}</mesh>;
   switch (kind) {
@@ -188,15 +188,56 @@ function Wings({ flap }) { const l = useRef(); const r = useRef();
   useFrame(({ clock }) => { const a = Math.sin(clock.elapsedTime * (flap.current ? 14 : 2.5)) * (flap.current ? 0.45 : 0.12); if (l.current) l.current.rotation.z = 0.35 + a; if (r.current) r.current.rotation.z = -0.35 - a; });
   return <>{[[l, -1], [r, 1]].map(([ref, s]) => <group key={s} ref={ref} position={[s * 0.26, 0.6, -0.3]}><mesh position={[s * 0.2, 0.05, 0]} rotation={[0, s * 0.5, 0]} scale={[1.3, 0.75, 0.28]}><sphereGeometry args={[0.2, 12, 8]} /><meshStandardMaterial color="#ffffff" roughness={0.6} /></mesh></group>)}</>; }
 // personal hats picked in the bot's card (stored server-side)
+// Hats are fitted to the actual body geometry (any blob style): we measure the body's width profile once per shape,
+// then size each hat to the head and seat it where the head is as wide as the hat's opening, so the body never pokes
+// through. The hat lives in the same animated group as the body, so squash/bounce/lie poses deform both together.
+const PROFILE = new Map(); // kind -> { top, R(y) }
+function bodyProfile(obj, key) {
+  if (key && PROFILE.has(key)) return PROFILE.get(key);
+  obj.updateWorldMatrix(true, true); const inv = new THREE.Matrix4().copy(obj.matrixWorld).invert();
+  const pts = []; const v = new THREE.Vector3(), w = new THREE.Vector3(), m = new THREE.Matrix4();
+  obj.traverse((o) => { if (!o.isMesh || !o.geometry?.attributes?.position) return; m.multiplyMatrices(inv, o.matrixWorld);
+    const pos = o.geometry.attributes.position; const idx = o.geometry.index; const n = idx ? idx.count : pos.count; const at = (k) => (idx ? idx.getX(k) : k);
+    for (let t = 0; t + 2 < n; t += 3) for (let e = 0; e < 3; e++) { v.fromBufferAttribute(pos, at(t + e)).applyMatrix4(m); w.fromBufferAttribute(pos, at(t + (e + 1) % 3)).applyMatrix4(m);
+      for (let s = 0; s <= 6; s++) pts.push(v.x + (w.x - v.x) * s / 6, v.y + (w.y - v.y) * s / 6, v.z + (w.z - v.z) * s / 6); } });
+  let top = -Infinity, bot = Infinity; for (let i = 1; i < pts.length; i += 3) { top = Math.max(top, pts[i]); bot = Math.min(bot, pts[i]); }
+  const STEP = 0.01, N = Math.ceil((top - bot) / STEP) + 1, R = new Float32Array(N);
+  for (let i = 0; i < pts.length; i += 3) { const b = Math.min(N - 1, Math.max(0, Math.round((top - pts[i + 1]) / STEP))); R[b] = Math.max(R[b], Math.hypot(pts[i], pts[i + 2])); }
+  for (let b = 1; b < N; b++) R[b] = Math.max(R[b], R[b - 1]); // width at depth d = widest point from the top down to d (conservative)
+  const p = { top, R: (d) => R[Math.min(N - 1, Math.max(0, Math.round(d / STEP)))] };
+  if (key) PROFILE.set(key, p); return p;
+}
+// rb = opening radius at the hat's bottom (origin), H = how much head fits inside above the opening
+const HATS_FIT = { tophat: { rb: 0.18, H: 0.28 }, crown: { rb: 0.2, H: 0.4 }, beanie: { rb: 0.29, H: 0.22 }, cap: { rb: 0.27, H: 0.25 }, party: { rb: 0.14, H: 0.26 }, flower: { rb: 0.2, H: 0 } };
+export function hatFit(p, hat) {
+  const f = HATS_FIT[hat]; if (!p || !f) return null;
+  if (hat === 'flower') { const d = 0.08; return { y: p.top - d, x: Math.max(0.08, p.R(d) * 0.72), s: Math.min(1.3, Math.max(0.7, p.R(0.12) / 0.3)) }; }
+  const s = Math.min(1.5, Math.max(0.7, p.R(0.12) / (f.rb * 0.9))); // size to the head
+  let d = 0.02; while (d < f.H * s * 0.85 && p.R(d) < f.rb * s * 0.95) d += 0.01; // seat where the head reaches the opening
+  return { y: p.top - d, s };
+}
 const HAT_MAT = (c, r = 0.6, m = 0) => <meshStandardMaterial color={c} roughness={r} metalness={m} />;
-export function Hat({ kind, hat }) { const y = TOP[kind] - 0.02;
-  if (hat === 'tophat') return <group position={[0, y, 0]}><mesh position={[0, 0.02, 0]} castShadow><cylinderGeometry args={[0.3, 0.3, 0.025, 24]} />{HAT_MAT('#1c1c22')}</mesh><mesh position={[0, 0.17, 0]} castShadow><cylinderGeometry args={[0.18, 0.19, 0.28, 24]} />{HAT_MAT('#1c1c22')}</mesh><mesh position={[0, 0.07, 0]}><cylinderGeometry args={[0.195, 0.195, 0.05, 24]} />{HAT_MAT('#b3202a')}</mesh></group>;
-  if (hat === 'crown') return <group position={[0, y + 0.06, 0]}><mesh><cylinderGeometry args={[0.2, 0.2, 0.12, 20, 1, true]} /><meshStandardMaterial color="#f5c542" metalness={0.8} roughness={0.25} side={2} /></mesh>{[0, 1, 2, 3, 4].map((i) => <mesh key={i} position={[Math.cos(i * 1.257) * 0.19, 0.1, Math.sin(i * 1.257) * 0.19]}><coneGeometry args={[0.045, 0.1, 6]} />{HAT_MAT('#f5c542', 0.25, 0.8)}</mesh>)}<mesh position={[0, 0.02, 0.2]}><sphereGeometry args={[0.035, 10, 8]} /><meshStandardMaterial color="#e0245e" emissive="#e0245e" emissiveIntensity={0.4} /></mesh></group>;
-  if (hat === 'beanie') return <group position={[0, y - 0.1, 0]}><mesh scale={[1, 0.8, 1]} castShadow><sphereGeometry args={[0.3, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />{HAT_MAT('#3b7dd8', 0.95)}</mesh><mesh><torusGeometry args={[0.295, 0.04, 8, 24]} /><meshStandardMaterial color="#2b5fa8" roughness={0.95} /></mesh><mesh position={[0, 0.27, 0]}><sphereGeometry args={[0.07, 10, 8]} />{HAT_MAT('#ffffff', 1)}</mesh></group>;
-  if (hat === 'party') return <group position={[0, y + 0.13, 0]} rotation={[0, 0, 0.15]}><mesh castShadow><coneGeometry args={[0.15, 0.32, 18]} />{HAT_MAT('#ff5fa2', 0.5)}</mesh><mesh position={[0, 0.17, 0]}><sphereGeometry args={[0.045, 10, 8]} />{HAT_MAT('#ffe14d', 0.5)}</mesh></group>;
-  if (hat === 'flower') return <group position={[0.17, y - 0.02, 0.12]} rotation={[0.3, 0, -0.4]}>{[0, 1, 2, 3, 4].map((i) => <mesh key={i} position={[Math.cos(i * 1.257) * 0.07, 0, Math.sin(i * 1.257) * 0.07]} scale={[1, 0.4, 1]}><sphereGeometry args={[0.06, 10, 8]} />{HAT_MAT('#ffffff', 0.7)}</mesh>)}<mesh position={[0, 0.02, 0]}><sphereGeometry args={[0.04, 10, 8]} />{HAT_MAT('#ffc93c', 0.6)}</mesh></group>;
-  if (hat === 'cap') return <group position={[0, y - 0.08, 0]}><mesh castShadow><sphereGeometry args={[0.28, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />{HAT_MAT('#e74c3c', 0.8)}</mesh><mesh position={[0, 0.01, 0.27]} rotation={[0.08, 0, 0]} scale={[1, 0.15, 0.9]}><cylinderGeometry args={[0.2, 0.2, 0.1, 20, 1, false, -Math.PI / 2, Math.PI]} />{HAT_MAT('#c0392b', 0.8)}</mesh></group>;
+// hat color: null = original colors, 'match' = the bot's color, '#rrggbb' = custom. Secondary parts get derived shades.
+export function shadeHex(hex, f) { const n = parseInt(hex.slice(1), 16); const ch = (v) => Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f);
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255].map((v) => ch(v).toString(16).padStart(2, '0')).join(''); }
+export function resolveHatColor(hatColor, botCol) { if (hatColor === 'match') { const c = String(botCol || ''); return /^#[0-9a-f]{3}$/i.test(c) ? '#' + [...c.slice(1)].map((x) => x + x).join('') : /^#[0-9a-f]{6}/i.test(c) ? c.slice(0, 7) : null; } return /^#[0-9a-f]{6}$/i.test(hatColor || '') ? hatColor : null; }
+function HatModel({ hat, color: hc }) { // origin = bottom/opening of the hat; hc = resolved custom color or null
+  const C = (orig, f = 0) => (hc ? (f ? shadeHex(hc, f) : hc) : orig);
+  if (hat === 'tophat') return <><mesh position={[0, 0.0125, 0]} castShadow><cylinderGeometry args={[0.3, 0.3, 0.025, 24]} />{HAT_MAT(C('#1c1c22'))}</mesh><mesh position={[0, 0.165, 0]} castShadow><cylinderGeometry args={[0.18, 0.19, 0.28, 24]} />{HAT_MAT(C('#1c1c22'))}</mesh><mesh position={[0, 0.05, 0]}><cylinderGeometry args={[0.195, 0.195, 0.05, 24]} />{HAT_MAT(hc ? shadeHex(hc, -0.55) : '#b3202a')}</mesh></>;
+  if (hat === 'crown') return <><mesh position={[0, 0.06, 0]}><cylinderGeometry args={[0.2, 0.2, 0.12, 20, 1, true]} /><meshStandardMaterial color={C('#f5c542')} metalness={0.8} roughness={0.25} side={2} /></mesh>{[0, 1, 2, 3, 4].map((i) => <mesh key={i} position={[Math.cos(i * 1.257) * 0.19, 0.16, Math.sin(i * 1.257) * 0.19]}><coneGeometry args={[0.045, 0.1, 6]} />{HAT_MAT(C('#f5c542'), 0.25, 0.8)}</mesh>)}<mesh position={[0, 0.08, 0.2]}><sphereGeometry args={[0.035, 10, 8]} /><meshStandardMaterial color="#e0245e" emissive="#e0245e" emissiveIntensity={0.4} /></mesh></>;
+  if (hat === 'beanie') return <><mesh scale={[1, 0.8, 1]} castShadow><sphereGeometry args={[0.3, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />{HAT_MAT(C('#3b7dd8'), 0.95)}</mesh><mesh><torusGeometry args={[0.295, 0.04, 8, 24]} /><meshStandardMaterial color={hc ? shadeHex(hc, -0.28) : '#2b5fa8'} roughness={0.95} /></mesh><mesh position={[0, 0.27, 0]}><sphereGeometry args={[0.07, 10, 8]} />{HAT_MAT('#ffffff', 1)}</mesh></>;
+  if (hat === 'party') return <group rotation={[0, 0, 0.12]}><mesh position={[0, 0.16, 0]} castShadow><coneGeometry args={[0.15, 0.32, 18]} />{HAT_MAT(C('#ff5fa2'), 0.5)}</mesh><mesh position={[0, 0.33, 0]}><sphereGeometry args={[0.045, 10, 8]} />{HAT_MAT('#ffe14d', 0.5)}</mesh></group>;
+  if (hat === 'flower') return <group rotation={[0.3, 0, -0.4]}>{[0, 1, 2, 3, 4].map((i) => <mesh key={i} position={[Math.cos(i * 1.257) * 0.07, 0, Math.sin(i * 1.257) * 0.07]} scale={[1, 0.4, 1]}><sphereGeometry args={[0.06, 10, 8]} />{HAT_MAT(C('#ffffff', 0.35), 0.7)}</mesh>)}<mesh position={[0, 0.02, 0]}><sphereGeometry args={[0.04, 10, 8]} />{HAT_MAT('#ffc93c', 0.6)}</mesh></group>;
+  if (hat === 'cap') return <><mesh castShadow><sphereGeometry args={[0.28, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />{HAT_MAT(C('#e74c3c'), 0.8)}</mesh><mesh position={[0, 0.01, 0.27]} rotation={[0.08, 0, 0]} scale={[1, 0.15, 0.9]}><cylinderGeometry args={[0.2, 0.2, 0.1, 20, 1, false, -Math.PI / 2, Math.PI]} />{HAT_MAT(C('#c0392b', -0.2), 0.8)}</mesh></>;
   return null;
+}
+// bodyRef: the group holding <Body>; profKey: cache key for that body geometry (e.g. the shape kind)
+export function Hat({ kind, hat, bodyRef, profKey, color }) {
+  const [fit, setFit] = useState(null);
+  useEffect(() => { const o = bodyRef?.current; if (o) setFit(hatFit(bodyProfile(o, profKey ?? kind), hat)); }, [kind, hat, profKey]); // eslint-disable-line
+  const f = fit || { y: TOP[kind] - 0.02, s: 1, x: 0.17 };
+  if (hat === 'flower') return <group position={[f.x, f.y, f.x * 0.7]} scale={f.s}><HatModel hat={hat} color={color} /></group>;
+  return <group position={[0, f.y, 0]} scale={f.s}><HatModel hat={hat} color={color} /></group>;
 }
 function Kasa({ kind }) { const y = TOP[kind] + 0.02; // straw hat (sugegasa) with a red tie
   return <group position={[0, y, 0]} rotation={[-0.12, 0, 0]}>
@@ -283,7 +324,7 @@ export default function Blob({ bot, target, selected, onSelect, showBubble, posi
   const { groundY, Ro, spokes = [], plazaFoot } = layout;
   const color = botColor(bot); const kind = kindFor(blobStyle, bot.shape); const eye = SHAPES[kind].eye;
   const eyeColor = SHAPES[kind].geo || !isDark(color) ? '#17171c' : '#f8fafc'; // real avatars: dark eyes on every color
-  const outer = useRef(); const inner = useRef(); const eyes = useRef(); const sel = useRef();
+  const outer = useRef(); const bodyRef = useRef(); const inner = useRef(); const eyes = useRef(); const sel = useRef();
   const pos = useRef(V(target.pos));
   const path = useRef([]); const trail = useRef([...(target.approach || [])]); const rot = useRef(target.face || 0); const hop = useRef(0);
   const blinkAt = useRef(2 + Math.random() * 3); const [moving, setMoving] = useState(false); const movingRef = useRef(false);
@@ -390,12 +431,12 @@ export default function Blob({ bot, target, selected, onSelect, showBubble, posi
     <group ref={outer} onClick={(e) => { e.stopPropagation(); onSelect(bot.id); }}
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => (document.body.style.cursor = '')}>
       <group ref={inner}>
-        <Body kind={kind} color={color} />
+        <group ref={bodyRef}><Body kind={kind} color={color} /></group>
         {accessory === 'horns' && <Horns kind={kind} />}
         {accessory === 'kasa' && !bot.hat && <Kasa kind={kind} />}
         {accessory === 'costume' && !bot.hat && <Costume kind={kind} id={bot.id} />}
         {accessory === 'cowboy' && !bot.hat && <Cowboy kind={kind} tone={[...(bot.id || '')].reduce((a, ch) => a + ch.charCodeAt(0), 0)} />}
-        {bot.hat && <Hat kind={kind} hat={bot.hat} />}
+        {bot.hat && <Hat kind={kind} hat={bot.hat} bodyRef={bodyRef} color={resolveHatColor(bot.hatColor, botColor(bot))} />}
         {accessory === 'cowboy' && <Revolver kind={kind} active={arrived && target.activity === 'shooting'} seed={[...(bot.id || '')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 7} />}
         {accessory === 'halo' && <Wings flap={movingRef} />}
         <group ref={eyes} position={[SHAPES[kind].ex || 0, eye[1], eye[2]]}>

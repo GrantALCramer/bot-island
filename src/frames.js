@@ -1,0 +1,31 @@
+// Decorative chat frames: CSS gradients + a few emoji along the border. No image assets.
+export const THEME_FRAMES = {
+  tropical: { bg: 'linear-gradient(135deg,#ffd89b,#19b5c6)', icons: ['🌴', '🌺', '🐚', '🍍'] },
+  antarctica: { bg: 'linear-gradient(135deg,#e6f4ff,#8fc8f0)', icons: ['❄️', '🐧', '🧊', '🐋'] },
+  atlantis: { bg: 'linear-gradient(135deg,#0b3d6b,#1fa5b8)', icons: ['🐠', '🫧', '🐚', '🔱'] },
+  jungle: { bg: 'linear-gradient(135deg,#1f5f2c,#7cbf4a)', icons: ['🌿', '🦜', '🍃', '🐒'] },
+  moon: { bg: 'linear-gradient(135deg,#15162b,#4a4e7a)', icons: ['🌙', '⭐', '🚀', '🪐'] },
+  heaven: { bg: 'linear-gradient(135deg,#fffbea,#f6d77a)', icons: ['☁️', '✨', '😇', '🕊️'] },
+  hell: { bg: 'linear-gradient(135deg,#3b0505,#e2471b)', icons: ['🔥', '😈', '🌋', '🔱'] },
+  sakura: { bg: 'linear-gradient(135deg,#ffe3ee,#f59bb8)', icons: ['🌸', '🍡', '🎐', '🌸'] },
+  city: { bg: 'linear-gradient(135deg,#3a4250,#9aa6b8)', icons: ['🏙️', '🚕', '🚦', '🏢'] },
+  west: { bg: 'linear-gradient(135deg,#c9772f,#f1c27d)', icons: ['🌵', '🤠', '🐎', '⭐'] },
+  candy: { bg: 'linear-gradient(135deg,#ffb3d9,#a6e3ff)', icons: ['🍬', '🍭', '🧁', '🍩'] },
+  glade: { bg: 'linear-gradient(135deg,#2f5d3a,#b7e07a)', icons: ['🍄', '✨', '🧚', '🌼'] },
+  cave: { bg: 'linear-gradient(135deg,#1d1238,#7b4fd6)', icons: ['💎', '🔮', '🪨', '✨'] },
+  haunted: { bg: 'linear-gradient(135deg,#1b1b24,#5b4a7a)', icons: ['👻', '🦇', '🕯️', '🪦'] },
+};
+export const HOLIDAY_FRAMES = {
+  newyear: { bg: 'linear-gradient(135deg,#0c0c2a,#c9a227)', icons: ['🎆', '🥂', '🎉', '✨'] },
+  lunarny: { bg: 'linear-gradient(135deg,#b3001b,#f5c542)', icons: ['🧧', '🏮', '🐉', '🎊'] },
+  valentines: { bg: 'linear-gradient(135deg,#ff9ab8,#d6164f)', icons: ['💘', '💕', '🌹', '💌'] },
+  stpatricks: { bg: 'linear-gradient(135deg,#0f7a32,#7ed957)', icons: ['☘️', '🍀', '🌈', '🪙'] },
+  easter: { bg: 'linear-gradient(135deg,#fff3b0,#c8b6ff)', icons: ['🐣', '🥚', '🐰', '🌷'] },
+  earthday: { bg: 'linear-gradient(135deg,#1e6fb8,#46b04a)', icons: ['🌍', '🌱', '♻️', '🌳'] },
+  july4: { bg: 'linear-gradient(135deg,#b22234,#ffffff 50%,#3c3b6e)', icons: ['🎇', '🇺🇸', '🎆', '⭐'] },
+  halloween: { bg: 'linear-gradient(135deg,#1a1a1a,#ff7a00)', icons: ['🎃', '🦇', '👻', '🕸️'] },
+  diwali: { bg: 'linear-gradient(135deg,#7a1f5c,#ffb703)', icons: ['🪔', '✨', '🎇', '🌼'] },
+  thanksgiving: { bg: 'linear-gradient(135deg,#8a3b12,#e9a03b)', icons: ['🦃', '🍂', '🥧', '🌽'] },
+  hanukkah: { bg: 'linear-gradient(135deg,#0d3b8c,#c9d6ff)', icons: ['🕎', '✡️', '🕯️', '🍩'] },
+  christmas: { bg: 'linear-gradient(135deg,#0f5132,#c1121f)', icons: ['🎄', '🎁', '⛄', '🔔'] },
+};

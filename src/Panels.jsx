@@ -55,6 +55,7 @@ export function TaskScreen({ bot, label, info, onClose }) {
 
 export const HATS = [['none', 'None'], ['tophat', '🎩 Top hat'], ['crown', '👑 Crown'], ['beanie', '🧶 Beanie'], ['party', '🥳 Party hat'], ['flower', '🌼 Flower'], ['cap', '🧢 Cap']];
 const SWATCH = ['#e74c3c', '#f39c12', '#f1c40f', '#2ecc71', '#1abc9c', '#3498db', '#9b59b6', '#ff6fb5', '#8d5a3b', '#34495e'];
+const HAT_SWATCH = ['#1c1c22', '#ffffff', '#e74c3c', '#f39c12', '#f5c542', '#2ecc71', '#3b7dd8', '#9b59b6', '#ff5fa2', '#8d5a3b'];
 export async function saveCustom(body) {
   const r = await fetch('/api/bots/custom', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
@@ -66,6 +67,11 @@ export function ProfileEditor({ bot }) {
     <div className="pr"><span>Color</span><div className="sw">{SWATCH.map((c) => <button key={c} className={'swc' + (cur === c ? ' on' : '')} style={{ background: c }} title={c} onClick={() => send({ color: c })} />)}
       <input type="color" value={/^#[0-9a-f]{6}$/i.test(cur) ? cur : '#888888'} onChange={(e) => send({ color: e.target.value })} title="Custom color" /></div></div>
     <div className="pr"><span>Hat</span><select value={bot.hat || 'none'} onChange={(e) => send({ hat: e.target.value })}>{HATS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+    {bot.hat && bot.hat !== 'none' && <div className="pr"><span>Hat color</span><div className="sw">
+      <button className={'swc swt' + (!bot.hatColor ? ' on' : '')} title="Default (original colors)" onClick={() => send({ hatColor: null })}>Default</button>
+      <button className={'swc swt' + (bot.hatColor === 'match' ? ' on' : '')} style={{ background: cur }} title="Match bot color" onClick={() => send({ hatColor: 'match' })}>Match</button>
+      {HAT_SWATCH.map((c) => <button key={c} className={'swc' + (bot.hatColor === c ? ' on' : '')} style={{ background: c }} title={c} onClick={() => send({ hatColor: c })} />)}
+      <input type="color" value={/^#[0-9a-f]{6}$/i.test(bot.hatColor || '') ? bot.hatColor : '#888888'} onChange={(e) => send({ hatColor: e.target.value })} title="Custom hat color" /></div></div>}
     <label className="toggle"><input type="checkbox" checked={bot.nameTag !== false} onChange={(e) => send({ nameTag: e.target.checked })} /> Show name tag</label>
     {bot.custom && <button className="clearbtn" onClick={() => send({ reset: true })}>Reset look</button>}
     {err && <div className="muted small" style={{ color: '#c0392b' }}>Couldn't save: {err}</div>}

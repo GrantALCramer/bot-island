@@ -7,12 +7,19 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useWorld } from './env.js';
+import HolidayDecor, { HOLIDAY_SEASONS } from './HolidayDecor.jsx';
+import { holidayFor } from '../holidays.js';
 
 export function seasonFor(mode, d = new Date()) {
   if (mode === 'off') return null; if (mode && mode !== 'auto') return mode;
+  const h = holidayFor(d); // a specific holiday window wins; otherwise the broad month-based seasons
+  if (h) { if (h.id === 'christmas') return 'winter'; if (h.id === 'halloween' || HOLIDAY_SEASONS.includes(h.id)) return h.id; }
   const m = d.getMonth(); return m === 9 ? 'halloween' : m === 11 ? 'winter' : m >= 2 && m <= 4 ? 'spring' : null;
 }
-export const SEASON_LABEL = { halloween: '🎃 Halloween', winter: '❄️ Winter holidays', spring: '🌸 Spring' };
+export const SEASON_LABEL = { halloween: '🎃 Halloween', winter: '❄️ Winter holidays', spring: '🌸 Spring', newyear: "🎆 New Year's", valentines: "💘 Valentine's Day", stpatricks: "☘️ St. Patrick's Day", easter: '🐣 Easter', july4: '🎇 4th of July', thanksgiving: '🦃 Thanksgiving', hanukkah: '🕎 Hanukkah', lunarny: '🧧 Lunar New Year', diwali: '🪔 Diwali' };
+export const SEASON_ICONS = [['halloween', '🎃'], ['winter', '❄️'], ['spring', '🌸'], ['newyear', '🎆'], ['valentines', '💘'], ['stpatricks', '☘️'], ['easter', '🐣'], ['july4', '🎇'], ['thanksgiving', '🦃'], ['hanukkah', '🕎'], ['lunarny', '🧧'], ['diwali', '🪔']];
+// map season -> chat holiday frame id (so 'holiday' chat frames follow a forced map season)
+export const SEASON_FRAME = { winter: 'christmas', halloween: 'halloween', ...Object.fromEntries(HOLIDAY_SEASONS.map((k) => [k, k])) };
 const NO_AIR = new Set(['moon', 'atlantis']);
 
 function useSpots(n0 = 10) { // porch spots by each home + evenly spaced points just outside the ring road
@@ -88,5 +95,6 @@ export default function Seasonal({ season, night }) {
   </group>);
   if (season === 'winter') return (<group>{air && <Falling R={R} kind="snow" />}<StringLights R={R} /></group>);
   if (season === 'spring') return air ? <Falling R={R} kind="petals" /> : null;
+  if (HOLIDAY_SEASONS.includes(season)) return <HolidayDecor season={season} spots={spots} R={R} air={air} night={night} />;
   return null;
 }

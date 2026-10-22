@@ -13,12 +13,14 @@ import { assignTargets, buildLayout } from './world/layout.js';
 import { KINDS, context as actContext, kindsFor, makeActivity, nextGap, pickKind, LEVEL_FROM_FREQ, wakeChance, fmtGap } from './activities.js';
 import { themeFor, surroundLayout, surroundModesOf } from './world/surround.js';
 import { getTheme, THEME_LIST } from './themes/index.js';
-import Seasonal, { seasonFor, SEASON_LABEL } from './world/Seasonal.jsx';
+import Seasonal, { seasonFor, SEASON_LABEL, SEASON_ICONS, SEASON_FRAME } from './world/Seasonal.jsx';
 import { localHour, themeWeather, useLiveWeather } from './live.js';
 import { ActivityLog, ProfileEditor, TaskScreen } from './Panels.jsx';
 import { askPermission, chime, useAlertNotifications } from './notify.js';
 import { botColor, etHour, fmtET, fmtHour, STATE_INFO } from './util.js';
 import { useChat, ChatThread, ChatSettings } from './Chat.jsx';
+import { ChatPop, ChatLookControls } from './ChatPop.jsx';
+import { useChatPrefs } from './chatPrefs.js';
 
 // Guard every material's output against negative / NaN colors. Some shaders (water, atlantis) can emit slightly
 // negative values; on NVIDIA/ANGLE-D3D the HDR bloom + sRGB pow() turn those into NaN, which shows up as flickering
@@ -128,13 +130,14 @@ export default function App() {
   useEffect(() => { if (!URL_OVERRIDE) localStorage.setItem('botsim.settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { window.__botsim = { ...(window.__botsim || {}), select: (id) => { follow.current = true; setSelected(id); }, positions }; }, []);
 
+  const [popOf, setPopOf] = useState(() => qs.get('chatpop') || null); // pop-out chat (bot id)
   const baseTheme = getTheme(settings.theme); const surround = settings.surround === 'land' ? 'land' : 'water';
   const theme = useMemo(() => themeFor(baseTheme, surround), [baseTheme, surround]);
   const calm = theme.weathers.includes('clear') ? 'clear' : theme.defaultWeather;
   const rwxOk = settings.rwx && theme.weathers.includes(settings.rwx.w) && settings.rwx.theme === theme.id;
   // random weather: re-pick when the current pick expires or doesn't belong to this theme
   useEffect(() => { if (settings.wxMode === 'random' && (!rwxOk || settings.rwx.until < now)) setSettings((s) => ({ ...s, rwx: { ...pickWeather(theme.weathers, calm, s.rwx?.w), theme: theme.id } })); }, [settings.wxMode, rwxOk, now, theme.id]); // eslint-disable-line
-  const season = seasonFor(settings.seasonMode);
+  const season = seasonFor(settings.seasonMode, qs.get('date') ? new Date(qs.get('date') + 'T12:00') : undefined);
   const liveWx = useLiveWeather(settings.wxMode === 'live', settings.wxLoc);
   const weather = settings.wxMode === 'live' ? themeWeather(theme, liveWx && !liveWx.error ? liveWx.cond : null) : settings.wxMode === 'random' ? (rwxOk ? settings.rwx.w : calm) : theme.weathers.includes(settings.weather) ? settings.weather : theme.defaultWeather;
   const worldHour = clockHour(settings.rclock, settings.rate, now);
@@ -234,7 +237,8 @@ export default function App() {
       </div>
 
       {screenOf && bots.find((b) => b.id === screenOf) && <TaskScreen bot={bots.find((b) => b.id === screenOf)} label={label(bots.find((b) => b.id === screenOf).state)} info={STATE_INFO} onClose={() => setScreenOf(null)} />}
-      {sel && <Card onScreen={() => setScreenOf(sel.id)} bot={sel} label={act?.ids.includes(sel.id) && sel.state === 'idle' ? `${label(sel.state)} · ${act.label}` : label(sel.state)} chat={chat} onClose={() => setSelected(null)} />}
+      {popOf && bots.find((b) => b.id === popOf) && <ChatPop bot={bots.find((b) => b.id === popOf)} chat={chat} themeId={baseTheme.id} color={botColor(bots.find((b) => b.id === popOf))} onClose={() => setPopOf(null)} now={qs.get('date') ? new Date(qs.get('date') + 'T12:00') : undefined} seasonHoliday={settings.seasonMode && !['auto', 'off', 'spring'].includes(settings.seasonMode) ? SEASON_FRAME[settings.seasonMode] : null} />}
+      {sel && <Card onExpand={() => setPopOf(sel.id)} onScreen={() => setScreenOf(sel.id)} bot={sel} label={act?.ids.includes(sel.id) && sel.state === 'idle' ? `${label(sel.state)} · ${act.label}` : label(sel.state)} chat={chat} onClose={() => setSelected(null)} />}
 
       <button className="toolbtn panel" onClick={() => setShowLog((v) => !v)}>📜 <span className="gl">Activity log</span></button>
       {showLog && <ActivityLog bots={bots} info={STATE_INFO} onClose={() => setShowLog(false)} onSelect={(id) => select(id)} />}
@@ -281,7 +285,7 @@ export default function App() {
           <button className="linkish" onClick={rerollWx}>↻ Change now</button>
         </div>}
         <div className="lbl">Seasonal events {season && <b>{SEASON_LABEL[season]}</b>}</div>
-        <div className="wx size">{[['auto', '📅 Auto'], ['off', 'Off'], ['halloween', '🎃'], ['winter', '❄️'], ['spring', '🌸']].map(([m, n]) => <button key={m} className={(settings.seasonMode || 'auto') === m ? 'on' : ''} title={m === 'auto' ? 'By date: Halloween in October, winter holidays in December, spring Mar-May' : SEASON_LABEL[m] || 'No decorations'} onClick={() => set('seasonMode', m)}>{n}</button>)}</div>
+        <div className="wx size">{[['auto', '📅 Auto'], ['off', 'Off'], ...SEASON_ICONS].map(([m, n]) => <button key={m} className={(settings.seasonMode || 'auto') === m ? 'on' : ''} title={m === 'auto' ? 'By date: each holiday around its date (New Year, Lunar New Year, Valentine, St. Patrick, Easter, July 4th, Halloween, Diwali, Thanksgiving, Hanukkah, Christmas), else spring Mar-May' : SEASON_LABEL[m] || 'No decorations'} onClick={() => set('seasonMode', m)}>{n}</button>)}</div>
         </Sec><Sec id="idle" title="Idle activities" sub={level ? `${level}%` : 'Off'}>
         <div className="lbl">Idle activities {act && <b>{act.emojis[0]} {act.label}</b>}</div>
         <div className="slider actlvl"><span>😴</span><input type="range" min="0" max="100" step="1" value={level} onChange={(e) => { const v = +e.target.value; setSettings((s) => ({ ...s, actLevel: v, activities: v > 0 })); if (!v) setAct(null); }} /><span>🎉</span></div>
@@ -302,6 +306,7 @@ export default function App() {
           <button className={settings.touchMode !== 'earth' ? 'on' : ''} onClick={() => set('touchMode', 'standard')}>Standard<small>1 finger orbit · pinch zoom · 2 fingers pan</small></button>
           <button className={settings.touchMode === 'earth' ? 'on' : ''} onClick={() => set('touchMode', 'earth')}>Google Earth style<small>drag moves map · twist rotates · 2 fingers up/down tilt · double-tap zoom</small></button>
         </div>
+        </Sec><Sec id="chatlook" title="Chat look"><ChatLookSettings />
         </Sec><Sec id="chat" title="Chat connections">
         <ChatSettings bots={bots} />
         </Sec><Sec id="report" title="Bots report to">
@@ -372,7 +377,8 @@ function GitSourceEditor({ git, onSaved }) {
     </div>}
   </div>);
 }
-function Card({ bot, label, chat, onClose, onScreen }) {
+function ChatLookSettings() { const [p, set] = useChatPrefs(); return <ChatLookControls prefs={p} set={set} />; }
+function Card({ bot, label, chat, onClose, onScreen, onExpand }) {
   const si = STATE_INFO[bot.state] || STATE_INFO.idle;
   return (<div className="card panel">
     <button className="x" onClick={onClose}>×</button>
@@ -383,7 +389,7 @@ function Card({ bot, label, chat, onClose, onScreen }) {
     <div className="lbl">Current task <button className="clearbtn" style={{ float: 'right' }} onClick={onScreen}>📺 Task screen</button></div>
     <div className="task">{bot.task || '—'}</div>
     <div className="muted small">Last update: {fmtET(bot.updatedAt, true)}</div>
-    <ChatThread bot={bot} chat={chat} />
+    <ChatThread bot={bot} chat={chat} onExpand={onExpand} />
     <div className="lbl">Recent actions</div>
     <ol className="acts">{(bot.actions || []).slice(0, 10).map((a, i) => <li key={i}><span className="tm">{fmtET(a.ts)}</span><span>{a.text}</span></li>)}
       {!bot.actions?.length && <li className="muted">Nothing yet</li>}</ol>

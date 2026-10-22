@@ -35,7 +35,7 @@ export function useChat(wsChat) {
 }
 
 const STATUS = { sending: ['⏳', 'sending…'], delivered: ['✓', 'delivered'], failed: ['⚠', 'failed'], replied: ['✓✓', 'replied'] };
-export function ChatThread({ bot, chat }) {
+export function ChatThread({ bot, chat, big, onExpand }) {
   const msgs = chat.threads[bot.id] || []; const on = !!chat.connected[bot.id];
   const [text, setText] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const box = useRef();
@@ -47,9 +47,10 @@ export function ChatThread({ bot, chat }) {
     try { const r = await post('/api/chat/send', { bot: bot.id, text: t }); if (r.ok) setText(''); else setErr(r.error || `HTTP ${r.status}`); }
     catch { setErr('offline?'); } finally { setBusy(false); }
   };
-  return (<div className="chat">
-    <div className="lbl">Chat {on ? <span className="cok">● connected</span> : <span className="cno">not connected</span>}</div>
-    {(msgs.length > 0 || on) && <div className="thread" ref={box}>
+  return (<div className={'chat' + (big ? ' big' : '')}>
+    <div className="lbl">Chat {on ? <span className="cok">● connected</span> : <span className="cno">not connected</span>}
+      {onExpand && <button type="button" className="cpexp" onClick={onExpand} aria-label={`Expand chat with ${bot.name}`} title="Open a large chat window">⤢ Expand</button>}</div>
+    {(msgs.length > 0 || on || big) && <div className="thread" ref={box} role="log" aria-live="polite" aria-label={`Messages with ${bot.name}`}>
       {msgs.map((m) => { const me = m.from === 'user'; const st = STATUS[m.status] || null; return (
         <div key={m.id} className={'msg ' + (me ? 'me' : 'them')}>
           <div className="mt">{m.text}</div>
@@ -58,7 +59,7 @@ export function ChatThread({ bot, chat }) {
       {!msgs.length && <div className="muted small">No messages yet. Say hi 👋</div>}
     </div>}
     {on ? <form className="cin" onSubmit={send}>
-      <textarea rows={2} maxLength={2000} placeholder={`Message ${bot.name}…`} value={text} onChange={(e) => setText(e.target.value)}
+      <textarea rows={big ? 3 : 2} aria-label={`Message ${bot.name}`} maxLength={2000} placeholder={`Message ${bot.name}…`} value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) send(e); }} />
       <button type="submit" disabled={busy || !text.trim()}>Send</button>
     </form> : <div className="howto">

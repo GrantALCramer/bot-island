@@ -1,0 +1,51 @@
+/* pop-out chat */
+.cpback { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .35); }
+.cpwin { position: absolute; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 60px rgba(0,0,0,.45);
+  --fg: #1d1a16; --bg: #fffdf8; --mut: #6b6257; --them: #ffffff; --them-fg: #1d1a16; --me: #2b6fd6; --me-fg: #fff; --line: rgba(0,0,0,.12); color: var(--fg); }
+.cpwin.dark { --fg: #ffffff; --bg: #000000; --mut: #c9c9c9; --them: #1c1c1c; --them-fg: #fff; --me: #3b82f6; --me-fg: #fff; --line: rgba(255,255,255,.25); }
+.cpwin.full { inset: 0 !important; width: auto !important; height: auto !important; border-radius: 0; }
+.cpwin.framed .cpinner { margin: 22px; border-radius: 12px; }
+.cpinner { position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); padding: 10px 14px 12px; }
+.cptitle { display: flex; align-items: center; gap: 8px; cursor: move; user-select: none; padding-bottom: 6px; border-bottom: 1px solid var(--line); touch-action: none; }
+.cpwin.full .cptitle { cursor: default; }
+.cptitle h2 { flex: 1; margin: 0; font-size: calc(17px * var(--cp-scale)); }
+.cptitle .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+.cpx { border: 0; background: transparent; color: var(--fg); font-size: 22px; min-width: 44px; min-height: 44px; border-radius: 10px; cursor: pointer; }
+.cpx:hover, .cpx:focus-visible { background: var(--line); }
+.cpwin :focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+.cplook { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0; font-size: 12.5px; color: var(--fg); }
+.cplook .cptext { display: flex; align-items: center; gap: 4px; } .cplook .cptext input { width: 110px; }
+.cplook button { border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 8px; padding: 3px 8px; font: inherit; font-weight: 700; cursor: pointer; min-height: 32px; }
+.cplook .seg button.on { background: var(--fg); color: var(--bg); }
+.cplook .pct { min-width: 3.2em; color: var(--mut); } .cplook select { font: inherit; }
+.cpwin .chat { flex: 1; min-height: 0; width: 100%; align-self: stretch; box-sizing: border-box; display: flex; flex-direction: column; margin: 0; }
+.cpwin .chat > .lbl { color: var(--mut); }
+.cpwin .thread { flex: 1; max-height: none; min-height: 0; background: transparent; border: 1px solid var(--line); }
+.cpwin .msg { font-size: calc(14px * var(--cp-scale)); max-width: min(85%, 60em); }
+.cpwin .msg .mm { font-size: calc(11px * var(--cp-scale)); }
+.cpwin .msg.them { background: var(--them); color: var(--them-fg); border-color: var(--line); }
+.cpwin .msg.me { background: var(--me); color: var(--me-fg); }
+.cpwin.tint.light .msg.them { background: color-mix(in srgb, var(--bot) 22%, #ffffff); border-left: 4px solid var(--bot); }
+.cpwin.tint.dark .msg.them { background: color-mix(in srgb, var(--bot) 28%, #000000); border-left: 4px solid var(--bot); }
+.cpwin .cin textarea { font-size: calc(14px * var(--cp-scale)); background: var(--bg); color: var(--fg); border-color: var(--line); }
+.cpwin .howto, .cpwin .muted { color: var(--mut); }
+.cpwin.hc { --fg: #000; --bg: #fff; --mut: #000; --them: #fff; --them-fg: #000; --me: #ffe600; --me-fg: #000; --line: #000; }
+.cpwin.hc.dark { --fg: #fff; --bg: #000; --mut: #fff; --them: #000; --them-fg: #fff; --me: #ffe600; --me-fg: #000; --line: #ffe600; }
+.cpwin.hc .msg { font-weight: 700; font-size: calc(16px * var(--cp-scale)); border: 2px solid var(--line); }
+.cpwin.hc .cplook, .cpwin.hc .chat > .lbl { font-weight: 700; }
+.cpresize { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; z-index: 2; cursor: nwse-resize; touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.35) 50%, rgba(0,0,0,.35) 60%, transparent 60%, transparent 70%, rgba(0,0,0,.35) 70%, rgba(0,0,0,.35) 80%, transparent 80%); }
+/* frames: border only, behind nothing but the window edge; content panel above with a solid background */
+.cpframe { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.cpframe .fr { position: absolute; display: flex; justify-content: space-around; align-items: center; font-size: 15px; line-height: 1; }
+.cpframe .top { top: 3px; left: 22px; right: 22px; } .cpframe .bottom { bottom: 3px; left: 22px; right: 22px; }
+.cpframe .left, .cpframe .right { top: 22px; bottom: 22px; flex-direction: column; width: 22px; } .cpframe .left { left: 0; } .cpframe .right { right: 0; }
+.cpframe .fr span { display: inline-block; animation: cpbob 3.2s ease-in-out infinite; }
+.cpframe.still .fr span { animation: none; }
+@keyframes cpbob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(8deg); } }
+@media (prefers-reduced-motion: reduce) { .cpframe .fr span { animation: none; } }
+.chat .lbl .cpexp { float: right; border: 1px solid rgba(0,0,0,.15); background: #fff; border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; text-transform: none; letter-spacing: 0; }
+.cpwin .chat .lbl .cpexp { display: none; }
+.cpwin .chat.big { border-radius: 0; background: transparent; box-shadow: none; padding: 0; } /* .big is used elsewhere in styles.css */
+.cpwin.hc .cpx { color: var(--fg); background: var(--bg); border: 2px solid var(--line); }
+.cpwin .cplook .seg button:not(.on) { background: var(--bg); color: var(--fg); }

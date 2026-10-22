@@ -236,7 +236,7 @@ function snapshot() {
     }
     let cleared = false; if (ALERTS.has(state) && ACKS[b.id] && ACKS[b.id].at >= (b.updatedAt || 0)) { state = 'idle'; cleared = true; }
     const cu = CUSTOM[b.id] || {};
-    return { id: b.id, name: b.name || b.id, title: b.title || '', shape: b.shape || null, color: cu.color || b.color || null, hat: cu.hat || null, nameTag: cu.nameTag !== false, visit: b.source === 'real' ? visitOf(b) : null, custom: !!CUSTOM[b.id], state, task: b.task || '', updatedAt: b.updatedAt || 0, stateSince: b.stateSince || b.updatedAt || 0, actions: (b.actions || []).slice(0, 10), source: b.source, ...(cleared ? { cleared: true } : {}), profile: !!profiles.find((p) => p.id === b.id) };
+    return { id: b.id, name: b.name || b.id, title: b.title || '', shape: b.shape || null, color: cu.color || b.color || null, hat: cu.hat || null, hatColor: cu.hatColor || null, nameTag: cu.nameTag !== false, visit: b.source === 'real' ? visitOf(b) : null, custom: !!CUSTOM[b.id], state, task: b.task || '', updatedAt: b.updatedAt || 0, stateSince: b.stateSince || b.updatedAt || 0, actions: (b.actions || []).slice(0, 10), source: b.source, ...(cleared ? { cleared: true } : {}), profile: !!profiles.find((p) => p.id === b.id) };
   });
   // stable order: profile bots first, then alphabetical
   bots.sort((a, b) => (b.profile - a.profile) || a.name.localeCompare(b.name));
@@ -485,6 +485,7 @@ async function customRoute(req, res, isPublic) { // POST {bot, color?: '#rrggbb'
   else { const c = { ...(CUSTOM[bot] || {}) };
     if ('color' in body) { if (body.color === null || body.color === '') delete c.color; else if (/^#[0-9a-f]{6}$/i.test(String(body.color))) c.color = String(body.color).toLowerCase(); else return json(res, 400, { error: 'color must be #rrggbb' }); }
     if ('hat' in body) { if (!HATS.includes(body.hat)) return json(res, 400, { error: 'unknown hat' }); if (body.hat === 'none') delete c.hat; else c.hat = body.hat; }
+    if ('hatColor' in body) { const v = body.hatColor; if (v === null || v === '' || v === 'default') delete c.hatColor; else if (v === 'match' || /^#[0-9a-f]{6}$/i.test(String(v))) c.hatColor = String(v).toLowerCase(); else return json(res, 400, { error: "hatColor must be 'match', #rrggbb or null" }); }
     if ('nameTag' in body) { if (typeof body.nameTag !== 'boolean') return json(res, 400, { error: 'nameTag must be true/false' }); if (body.nameTag) delete c.nameTag; else c.nameTag = false; }
     if (Object.keys(c).length) CUSTOM[bot] = c; else delete CUSTOM[bot]; }
   saveCustom(); broadcast(); return json(res, 200, { ok: true, custom: CUSTOM[bot] || {} });
