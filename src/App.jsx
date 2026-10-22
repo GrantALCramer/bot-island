@@ -31,6 +31,7 @@ import EarthTouch from './EarthTouch.jsx';
 import { RATES, DEFAULT_RATE, newClock, clockHour, pickWeather } from './random.js';
 
 const qs = new URLSearchParams(location.search);
+const TESTWORK = qs.has('testwork') ? Math.max(0, +qs.get('testwork') || 0) : null;
 // timeMode: auto (Eastern time) | live (viewer's clock) | manual (slider) | random (own world clock). wxMode: pick | random | live (Open-Meteo)
 const DEFAULTS = { theme: 'tropical', timeMode: 'auto', hour: 12, rate: DEFAULT_RATE, rclock: null, weather: 'clear', wxMode: 'pick', rwx: null, bubbles: true, glow: true, room: 0, surround: 'water', blobStyle: 'avatar', lite: null, activities: true, actFreq: 'normal', wxLoc: 'New York, NY', seasonMode: 'auto', touchMode: 'standard' }; // lite: null = auto
 // phones / small touch screens: lite mode on by default, panels start collapsed
@@ -114,7 +115,9 @@ function CamApi({ follow }) {
 }
 
 export default function App() {
-  const { bots, demo, connected, sources = [], wsChat } = useBotState();
+  const { bots: rawBots, demo, connected, sources = [], wsChat } = useBotState();
+  // dev/test only: ?testwork=N shows the first N bots as working and the rest idle (view-only, never saved or sent)
+  const bots = useMemo(() => (TESTWORK == null ? rawBots : rawBots.map((b, i) => ({ ...b, state: i < TESTWORK ? 'working' : 'idle', visit: null }))), [rawBots]);
   const chat = useChat(wsChat);
   const [settings, setSettings] = useState(loadSettings);
   const [selected, setSelected] = useState(qs.get('select') || null);

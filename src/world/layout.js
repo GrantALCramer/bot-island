@@ -117,6 +117,15 @@ const GROW = {
         const a = toWorld(I.x, I.z, I.rot, -ex, 0), b = toWorld(I.x, I.z, I.rot, ex, 0); const approach = [side(Math.hypot(...a) < Math.hypot(...b) ? -ex : ex)];
         return pick.map((j, i) => { const [x, z] = toWorld(I.x, I.z, I.rot, xs[j], 1.05); return st(I, i, { pos: [x, 0.5, z], face: I.rot + Math.PI + (i % 2 ? -0.75 : 0.75), lift: (i % 2) * 0.3, approach }); }); } }; },
 };
+// work station (holo lab): ONE lab that grows instead of copying. S = max(6, k) screen bays evenly around the core;
+// screens (~2.1 wide incl. side panels) sit 0.95 outside the bot ring, so the ring widens once 6+ bays don't fit
+// at the base radius; the deck scales with it (pad = ring -> deck edge stays ~1.45).
+GROW.HoloLab = () => { const S = (k) => Math.max(6, k || 0), r = (k) => Math.max(1.75, (S(k) * 2.1) / TAU - 0.95), F = (k) => (r(k) + 1.45) / (1.75 + 1.45);
+  const ORDER6 = [0, 3, 1, 4, 2, 5];
+  return { bays: S, r, scale: (k) => [F(k), F(k)], foot: (n) => 3.2 * F(n),
+    slots: (I, k) => { const n = S(k); const R = r(k); const all = Array.from({ length: n }, (_, i) => { const b = I.rot + 0.35 + (i / n) * TAU; const ux = Math.cos(b), uz = Math.sin(b);
+      return { pos: [I.x + ux * R, 0.26, I.z + uz * R], face: faceDir(ux, uz), station: `${I.id}:${i}`, lift: (i % 2) * 0.3, approach: [[I.x + ux * (3.2 * F(k) + 0.4), 0, I.z + uz * (3.2 * F(k) + 0.4)]] }; });
+      return n === 6 ? ORDER6.map((j) => all[j]) : all; } }; };
 export const growOf = (type, I) => GROW[type]?.(I);
 // campfire plaza: one ring of seats around the fire, 1.6 apart (roomy), at >= 2.35; the whole fire ring grows past 9
 export const PLAZA = { r0: 2.35, d: 1.6, foot0: 3.7 };
@@ -260,7 +269,7 @@ function tryLayout(theme, n, R) {
   const keys = Object.keys(theme.zones).filter((k) => k !== 'waiting' && k !== 'plaza').sort((a, b) => (a === 'work' ? -1 : b === 'work' ? 1 : 0));
   for (const key of keys) {
     const cfg = theme.zones[key]; const T = ZONE_TYPES[cfg.type]; if (!T) continue;
-    const cap = (CAPACITY[key] || CAPACITY.social)(n); const m = key === 'social' && GROW[cfg.type] ? 1 : Math.ceil(cap / T.per); // the bar grows instead of copying
+    const cap = (CAPACITY[key] || CAPACITY.social)(n); const m = (key === 'social' || key === 'work') && GROW[cfg.type] ? 1 : Math.ceil(cap / T.per); // the bar / work lab grow instead of copying
     const inst = packZone(cfg.type, cfg, m, ctx, placed, key); if (!inst) return null;
     zones[key] = { key, cfg, type: cfg.type, instances: inst, slots: spread(inst, T.order) };
   }

@@ -229,20 +229,23 @@ function LabBase({ style, hc }) {
   return (<group><mesh geometry={deckGeo()} material={MAT.vc} receiveShadow castShadow />
     <Torch position={[Math.cos(2.4) * 2.8, 0.26, Math.sin(2.4) * 2.8]} seed={1} /><Torch position={[Math.cos(5.6) * 2.8, 0.26, Math.sin(5.6) * 2.8]} seed={2} /></group>);
 }
-export function HoloLab({ inst, cfg, occupied, primary }) {
+export function HoloLab({ inst, cfg, occupied, primary, count = 0 }) {
   const { layout } = useWorld(); const y0 = layout.groundY(inst.x, inst.z); const style = cfg.style || 'beach'; const hc = HOLO_COL[style] || EXT.holo[style] || '#5ff6ff';
-  const busy = inst.slots.some((s) => occupied.has(s.station));
+  // one lab for every working bot: max(6, count) screen bays around the core, deck grows to fit (see GROW.HoloLab)
+  const Gr = growOf('HoloLab', inst); const [g] = useGrow(Gr.scale(count)); const F = Gr.scale(count)[0];
+  const bays = useMemo(() => Gr.slots(inst, count).map((s) => ({ ...s, pos: [s.pos[0], s.pos[1] + layout.groundY(s.pos[0], s.pos[2]), s.pos[2]] })).sort((a, b) => +a.station.split(':')[1] - +b.station.split(':')[1]), [inst, count, layout]); // eslint-disable-line
+  const busy = bays.some((s) => occupied.has(s.station));
   return (<group>
     <group position={[inst.x, y0, inst.z]}>
-      <LabBase style={style} hc={hc} />
+      <group ref={g}><LabBase style={style} hc={hc} /></group>
       <HoloCore y={0.26} active={busy} color={hc} />
     </group>
-    {inst.slots.map((s, i) => { const ux = Math.sin(s.face), uz = Math.cos(s.face);
+    {bays.map((s, i) => { const ux = Math.sin(s.face), uz = Math.cos(s.face);
       return (<group key={s.station}>
         <Projector position={[s.pos[0] + ux * 0.95, s.pos[1] + 0.03, s.pos[2] + uz * 0.95]} color={hc} />
         <HoloScreen position={[s.pos[0] + ux * 0.95, s.pos[1] + 1.15, s.pos[2] + uz * 0.95]} rot={s.face + Math.PI} seed={inst.index * 6 + i * 1.7 + 0.3} active={occupied.has(s.station)} color={hc} station={s.station} />
       </group>); })}
-    {primary && <Sign text={cfg.label} position={[inst.x + 3.1, y0, inst.z + 1.0]} />}
+    {primary && <Sign text={cfg.label} position={[inst.x + 3.1 * F, y0, inst.z + 1.0 * F]} />}
   </group>);
 }
 
