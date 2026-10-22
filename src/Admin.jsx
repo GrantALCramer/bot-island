@@ -39,6 +39,7 @@ export function PairDevice() {
   const link = info?.key && okAddr ? `${base}/?key=${encodeURIComponent(info.key)}` : '';
   useEffect(() => { if (show && link) QRCode.toDataURL(link, { margin: 1, width: 240 }).then(setQr).catch(() => setQr('')); else setQr(''); }, [show, link]);
   if (!info) return null;
+  if (info.needsKey) return <div className="muted small">To show the pairing QR or rotate the key, open the island with your access key once (a pairing link <code>…/?key=…</code>, or the Windows app). Viewing without the key is read-only for these settings.</div>;
   if (!info.remote) return <div className="muted small">Pairing needs remote access turned on (Windows app: tray → <b>Allow bot connections</b>; server: <code>BOTISLAND_REMOTE=1</code>).</div>;
   const rotate = async () => { if (!confirm('Make a new access key? The old key stops working right away: every phone, PC and bot using it must be paired / updated again.')) return;
     const r = await post('/api/key/rotate', { confirm: true }); if (r.ok) { setInfo({ ...info, key: r.key }); setMsg('New key made. Re-pair your devices and update your bots.'); } else setMsg(r.error || 'Could not rotate the key'); };

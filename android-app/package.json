@@ -1,12 +1,13 @@
 {
   "name": "botisland-android",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Bot Island Android app (Capacitor shell that connects to your self-hosted island)",
   "license": "MIT",
   "scripts": {
     "sync": "node flags.mjs && npx cap sync android",
-    "apk": "node flags.mjs && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "apk": "node flags.mjs && npx cap sync android && cd android && ./gradlew assembleRelease",
+    "apk:debug": "node flags.mjs && npx cap sync android && cd android && ./gradlew assembleDebug",
     "apk:play": "node flags.mjs --play && npx cap sync android && cd android && ./gradlew assembleRelease",
     "bundle:play": "node flags.mjs --play && npx cap sync android && cd android && ./gradlew bundleRelease"
   },

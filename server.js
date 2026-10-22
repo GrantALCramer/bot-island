@@ -273,27 +273,43 @@ function readCookie(req, name) {
   for (const part of String(req.headers.cookie || '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim(); }
   return null;
 }
-const clientIp = (req) => String(req.headers['cf-connecting-ip'] || req.socket.remoteAddress || '?');
+// Who is calling, for rate limits. Headers are only trusted where a proxy we run put them there:
+//  - Cloudflare quick-tunnel mode: cf-connecting-ip
+//  - public port reached from loopback (tailscale serve / a reverse proxy on this host): the LAST X-Forwarded-For hop
+//    (the one our proxy appended; anything earlier is client-supplied), else Tailscale-User-Login
+//  - everything else: the TCP peer address. A client can't pick its own bucket by sending headers.
+function clientIp(req) {
+  const sock = String(req.socket.remoteAddress || '?');
+  if (C?.remote?.tunnel && req.headers['cf-connecting-ip'] && isLoopback(sock)) return 'cf:' + String(req.headers['cf-connecting-ip']).trim().slice(0, 64);
+  if (req.isPublic && isLoopback(sock)) {
+    const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (xff.length) return 'fwd:' + xff[xff.length - 1].slice(0, 64);
+    if (req.headers['tailscale-user-login']) return 'ts:' + String(req.headers['tailscale-user-login']).slice(0, 128);
+  }
+  return sock;
+}
 // rate limit: 10 failed key/cookie attempts per IP per 15 min -> 429 until the window ends
 const FAILS = new Map(); const FAIL_MAX = 10, FAIL_WIN = 15 * 60000;
 const limited = (ip) => { const f = FAILS.get(ip); return !!f && f.n >= FAIL_MAX && Date.now() - f.t0 < FAIL_WIN; };
 function fail(ip) { const now = Date.now(); let f = FAILS.get(ip); if (!f || now - f.t0 > FAIL_WIN) f = { n: 0, t0: now }; f.n++; FAILS.set(ip, f); }
 setInterval(() => { const now = Date.now(); for (const [ip, f] of FAILS) if (now - f.t0 > FAIL_WIN) FAILS.delete(ip); }, 60000);
 // returns 'ok' | 'locked' | 'limited'
+// A correct cookie/key is checked FIRST, so it is never rate-limited or counted; only wrong attempts are.
+// req.keyAuth = true when the caller proved it holds the key (cookie, ?key= or Bearer), not just "is local".
 function checkAuth(req, isPublic, url) {
+  const c = readCookie(req, COOKIE); const k = url?.searchParams.get('key');
+  if (c && COOKIE_VAL && safeEq(c, COOKIE_VAL)) { req.keyAuth = true; return 'ok'; }
+  if (k && ACCESS_KEY && safeEq(k, ACCESS_KEY)) { req.keyAuth = true; return 'ok'; }
   if (localBypass(req, isPublic)) return 'ok';
   const ip = clientIp(req); if (limited(ip)) return 'limited';
-  const c = readCookie(req, COOKIE); const k = url?.searchParams.get('key');
-  if (c && COOKIE_VAL && safeEq(c, COOKIE_VAL)) return 'ok';
-  if (k && ACCESS_KEY && safeEq(k, ACCESS_KEY)) return 'ok';
   if (c || k) fail(ip);
   return 'locked';
 }
 // 'ok' | 'locked' | 'limited' when an Authorization: Bearer header is present, else null (fall back to checkAuth)
 function bearerAuth(req) {
   const m = /^Bearer\s+(\S+)$/i.exec(String(req.headers.authorization || '')); if (!m) return null;
+  if (ACCESS_KEY && safeEq(m[1], ACCESS_KEY)) { req.keyAuth = true; return 'ok'; }
   const ip = clientIp(req); if (limited(ip)) return 'limited';
-  if (ACCESS_KEY && safeEq(m[1], ACCESS_KEY)) return 'ok';
   if (localBypass(req, false) && !ACCESS_KEY) return 'ok'; // remote access off: loopback bots may send any placeholder
   fail(ip); return 'locked';
 }
@@ -309,7 +325,7 @@ function deny(res, why) {
 // ---------- http + ws ----------
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.webp': 'image/webp' };
 function handle(req, res, isPublic) {
-  const url = new URL(req.url, 'http://x');
+  const url = new URL(req.url, 'http://x'); req.isPublic = isPublic;
   // install files (app manifest, icons, service worker) hold nothing private; Chrome fetches the manifest without cookies
   const PWA_PUBLIC = url.pathname === '/manifest.webmanifest' || url.pathname === '/sw.js' || /^\/icons\/[\w.-]+\.png$/.test(url.pathname) || url.pathname === '/island-report.sh'; // the reporting script holds no secrets
   // a bot self-registering its chat webhook authenticates with the island key as a Bearer header (never in the URL)
@@ -339,6 +355,11 @@ function handle(req, res, isPublic) {
   if (url.pathname === '/api/info') { const g = SOURCES.find((x) => x.type === 'git');
     return json(res, 200, { version: process.env.BOTISLAND_APP_VERSION || VERSION, desktop: !!process.versions.electron, eventsDir: C.eventsDir, canEdit: !!CONFIG_FILE,
       git: g ? { url: redactUrl(g.url), branch: g.branch, hasToken: !!(g.tokenFile && fs.existsSync(g.tokenFile)), ok: !g.error, error: g.error, lastSync: g.last } : null }); }
+  // admin endpoints (anything that returns or changes the key, or installs updates) need the key/cookie even locally;
+  // keyless local viewing still works for everything else. /api/pair without the key only says whether remote is on.
+  const ADMIN = url.pathname === '/api/key/rotate' || url.pathname.startsWith('/api/update');
+  if (url.pathname === '/api/pair' && !req.keyAuth) return json(res, 200, { remote: !!ACCESS_KEY, key: null, needsKey: !!ACCESS_KEY });
+  if (ADMIN && !req.keyAuth) return json(res, 401, { error: 'open the island with your access key (pairing link) to do this' });
   if (url.pathname === '/api/update' && req.method === 'GET') return json(res, 200, UPDATER ? UPDATER.status() : { enabled: false });
   if (url.pathname === '/api/update/check' || url.pathname === '/api/update/apply') return updateRoute(req, res, isPublic, url.pathname);
   if (url.pathname === '/api/pair' && req.method === 'GET') return json(res, 200, { remote: !!ACCESS_KEY, key: ACCESS_KEY || null });
@@ -542,7 +563,7 @@ async function chatRoute(req, res, url, isPublic) {
 
 const wss = new WebSocketServer({ noServer: true });
 function upgrade(req, sock, head, isPublic) {
-  const url = new URL(req.url, 'http://x');
+  const url = new URL(req.url, 'http://x'); req.isPublic = isPublic;
   const reject = (code, msg) => { sock.write(`HTTP/1.1 ${code} ${msg}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); sock.destroy(); };
   if (url.pathname !== '/ws') return reject(404, 'Not Found');
   const auth = checkAuth(req, isPublic, null); // cookie only (or local bypass); keys are never accepted on the ws URL

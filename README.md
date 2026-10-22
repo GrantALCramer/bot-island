@@ -115,7 +115,8 @@ Use `docker compose up -d --build` or `deploy/install-debian.sh --tailscale`. Se
 ## Downsides / good to know
 - **Tailscale is required on every device** that opens the island (PC, phone, and each bot's computer).
 - **The host must stay awake.** If the PC sleeps or turns off, bots can't report and your phone can't connect.
-- **The access key is full admin access** (including updates). Never show it, the pairing QR or a `?key=` link in
+- **The access key is full admin access** (including updates). Opening the island on its own computer without the key
+  still shows it, but pairing, key rotation and updates always need the key (or its cookie). Never show it, the pairing QR or a `?key=` link in
   screenshots, screen recordings or reels. If it leaks: **Island settings → Pair a phone or PC → Rotate access key**.
   The old key stops working at once, so re-pair your devices and run `island-report.sh setup` again on your bots.
 - **The apps aren't code-signed yet.** Windows shows a SmartScreen warning and Android asks you to allow unknown apps.
@@ -252,7 +253,11 @@ Webhook URLs and keys are stored only in the webhooks file (chmod 600) and never
 3. On first launch tap **Scan QR** (see [Connect from your phone](#connect-from-your-phone)) or enter the **island URL** (e.g. `https://island.<tailnet>.ts.net` or `http://192.168.1.20:8797`)
    and the **access key**. It's remembered; press **Back** on the island to return to the setup screen to change it.
 Plain `http://` on a LAN or Tailscale IP is allowed. Build it yourself:
-`cd android-app && npm ci && npx cap sync android && cd android && ./gradlew assembleDebug` (JDK 21 + Android SDK 35).
+`cd android-app && npm ci && npm run apk` (signed release; JDK 21 + Android SDK 35). Signing uses a keystore kept
+**outside the repo**: `~/.botisland/android-release.jks` + password file `~/.botisland/android-release.pass` (alias `botisland`;
+override with `BOTISLAND_KEYSTORE` / `BOTISLAND_KEYSTORE_PASS_FILE`). **Back both up**: without the same keystore,
+phones can't update the app (they'd have to uninstall). `npm run apk:debug` builds a debug APK; `npm run apk:play` / `bundle:play`
+build with the self-update check off for Google Play.
 
 **PWA:** open the island in Chrome on the phone → ⋮ → *Add to Home screen* / *Install app*.
 

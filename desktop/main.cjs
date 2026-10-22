@@ -26,7 +26,7 @@ async function setAllowBots(on) {
   const c = readIslandCfg(); c.remote = { ...(c.remote || {}), enabled: !!on };
   fs.mkdirSync(path.dirname(islandFile), { recursive: true }); fs.writeFileSync(islandFile, JSON.stringify(c, null, 2) + '\n', { mode: 0o600 });
   if (island) { const old = island; island = null; await Promise.race([old.close(), new Promise((r) => setTimeout(r, 3000))]); await startIsland();
-    if (!current?.remote) { current = { url: island.localUrl, remote: false, load: island.localUrl }; win?.loadURL(current.load); } }
+    if (!current?.remote) { current = { url: island.localUrl, remote: false, load: localLoad() }; win?.loadURL(current.load); } }
   if (on && island && !island.remoteUrl) dialog.showMessageBox(win, { type: 'warning', message: 'Port 8797 is busy', detail: 'Bot connections could not be opened because another program is using port 8797.' });
   buildTray();
 }
@@ -51,6 +51,9 @@ async function startIsland() {
   return island.localUrl;
 }
 
+// the app's own window holds the key (when bot connections are on), so admin parts (pairing QR, key rotation) work;
+// the key goes over loopback once and is swapped for a cookie by the server
+const localLoad = () => openUrl(island.localUrl, island.accessKey);
 // ---------- remote island ----------
 const REMOTE_FILE = () => path.join(app.getPath('userData'), 'remote.json');
 function readRemote() { try { const r = JSON.parse(fs.readFileSync(REMOTE_FILE(), 'utf8').replace(/^\uFEFF/, '')); r.servers = (r.servers || []).map(String).filter((u) => /^https?:\/\//.test(u)).map((u) => u.replace(/\/+$/, '')); return r; } catch { return null; } }
@@ -80,7 +83,7 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 async function connect() { // returns { url, load }
   const r = readRemote(); const remote = await pickRemote(r);
   if (remote) return { url: remote, remote: true, load: openUrl(remote, r.key) };
-  if (!island) await startIsland(); return { url: island.localUrl, remote: false, load: island.localUrl, failed: !!(r?.enabled && r.servers.length) };
+  if (!island) await startIsland(); return { url: island.localUrl, remote: false, load: localLoad(), failed: !!(r?.enabled && r.servers.length) };
 }
 async function go(prefer) {
   if (prefer !== undefined) { const r = readRemote() || { enabled: false, servers: [] }; if (prefer === 'local') r.enabled = false; else { r.enabled = true; r.prefer = prefer; } writeRemote(r); }
