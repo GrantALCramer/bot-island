@@ -7,7 +7,6 @@
   "license": "MIT",
   "private": true,
   "main": "main.cjs",
-      "preload.cjs",
   "scripts": {
     "stage": "node stage.mjs",
     "start": "node stage.mjs && electron .",
@@ -28,6 +27,7 @@
     },
     "files": [
       "main.cjs",
+      "preload.cjs",
       "icon.ico",
       "icon.png",
       "island/**/*",
