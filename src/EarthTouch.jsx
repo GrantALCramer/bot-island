@@ -26,16 +26,20 @@ export default function EarthTouch({ enabled, follow, minDist = 5, maxDist = 120
           getSph(); const k = 0.6; if (g) { const d = g.clone().sub(controls.target).multiplyScalar(1 - k); d.y = 0; controls.target.add(d); } sph.radius *= k; setSph(); st.n = 0; lastTap = 0; }
         else { lastTap = now; lastX = t[0].clientX; lastY = t[0].clientY; } }
       else if (t.length >= 2) st = { n: 2, ...two(t) };
-      e.preventDefault();
+      // Only cancel multi-finger starts: cancelling a 1-finger touchstart also kills the browser's click,
+      // which is what R3F uses for tapping a blob (canvas has touch-action:none, so no page scroll/zoom).
+      if (t.length >= 2 || st?.n === 0) e.preventDefault();
     };
     const move = (e) => {
-      if (!st) return; const t = e.touches; e.preventDefault();
+      if (!st) return; const t = e.touches;
       if (st.n === 1 && t.length === 1) { // grab-and-move: keep the grabbed ground point under the finger
         if (Math.hypot(t[0].clientX - st.x, t[0].clientY - st.y) > 6) { st.moved = true; lastTap = 0; }
+        if (!st.moved) return; if (e.cancelable) e.preventDefault(); // a still finger stays a tap (keeps the click)
         if (!st.g) return; const cur = ground(t[0].clientX, t[0].clientY, new THREE.Vector3()); if (!cur) return;
         const d = st.g.clone().sub(cur); d.y = 0; const lim = maxDist * 1.2; // don't fling far off the island
         const nt = controls.target.clone().add(d); if (Math.hypot(nt.x, nt.z) > lim) return;
         controls.target.add(d); camera.position.add(d); camera.lookAt(controls.target); return; }
+      if (e.cancelable) e.preventDefault();
       if (st.n === 2 && t.length >= 2) { const c = two(t); getSph();
         sph.radius *= st.d / Math.max(10, c.d); // pinch
         let da = c.ang - st.ang; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; sph.theta -= da; // twist
