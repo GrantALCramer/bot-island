@@ -201,3 +201,41 @@ canvas { touch-action: none; }
 .pair .pairwarn { margin: 6px 0; padding: 6px 8px; border-radius: 8px; background: #fff3cd; color: #6b4e00; font-size: 12px; }
 .pair .pairqr { display: block; margin: 6px auto; width: 200px; height: 200px; image-rendering: pixelated; background: #fff; padding: 6px; border-radius: 8px; }
 .swc.swt { width: auto; border-radius: 9px; padding: 0 6px; font: 600 10px system-ui; color: #222; background: #eee; text-shadow: 0 0 2px #fff; }
+/* floating windows: edge/corner resize handles */
+.fwedge { position: absolute; z-index: 5; touch-action: none; }
+.fw-n, .fw-s { left: 10px; right: 10px; height: 8px; cursor: ns-resize; } .fw-n { top: -3px; } .fw-s { bottom: -3px; }
+.fw-e, .fw-w { top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; } .fw-e { right: -3px; } .fw-w { left: -3px; }
+.fw-ne, .fw-nw, .fw-se, .fw-sw { width: 16px; height: 16px; } .fw-ne { top: -3px; right: -3px; cursor: nesw-resize; } .fw-sw { bottom: -3px; left: -3px; cursor: nesw-resize; }
+.fw-nw { top: -3px; left: -3px; cursor: nwse-resize; } .fw-se { bottom: -3px; right: -3px; cursor: nwse-resize; }
+.wbtn { border: 0; background: transparent; color: inherit; font-size: 16px; min-width: 36px; min-height: 36px; border-radius: 8px; cursor: pointer; }
+.wbtn:hover, .wbtn:focus-visible { background: rgba(127,127,127,.22); } .wbtn.on { background: rgba(127,127,127,.32); }
+/* task screen: floating widget */
+.tscreen.panel.float { transform: none; max-width: none; max-height: none; display: flex; flex-direction: column; overflow: visible; z-index: 900; padding: 0 12px 12px; }
+.tscreen.float .ts-h { cursor: move; user-select: none; touch-action: none; padding: 6px 0; margin: 0; }
+.tscreen.float .ts-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tscreen.float .ts-btns { display: flex; gap: 2px; } .tscreen .wbtn { color: #aef; }
+.tscreen.float .ts-glass { flex: 1; min-height: 0; overflow: auto; }
+.tscreen.mini { padding-bottom: 0; } .tscreen.sheet .ts-h { cursor: default; }
+.tscreen.panel.sheet { left: calc(8px + env(safe-area-inset-left, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); top: auto; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 60vh; }
+.tscreen.look-grey { background: rgba(74,77,85,.96); color: #f2f3f5; } .tscreen.look-grey .ts-k { color: #b9f3fb; } .tscreen.look-grey .ts-meta, .tscreen.look-grey .ts-ev span:first-child { color: #d4d7dc; }
+.tscreen.look-grey .ts-glass { border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.04); box-shadow: none; } .tscreen.look-grey .wbtn { color: #f2f3f5; }
+.tscreen.look-dark { background: rgba(30,31,34,.97); color: #e3e5e8; } .tscreen.look-dark .ts-k { color: #7dd3e8; } .tscreen.look-dark .ts-meta, .tscreen.look-dark .ts-ev span:first-child { color: #b5bac1; }
+.tscreen.look-dark .ts-glass { border-color: rgba(255,255,255,.1); background: #2b2d31; box-shadow: none; } .tscreen.look-dark .wbtn { color: #e3e5e8; }
+.tscreen.hc { background: #000; color: #fff; } .tscreen.hc .ts-glass { border: 2px solid #ffe600; background: #000; } .tscreen.hc .ts-k, .tscreen.hc .ts-meta, .tscreen.hc .ts-ev span:first-child, .tscreen.hc .wbtn { color: #ffe600; } .tscreen.hc * { font-weight: 700; }
+/* bot info card: Grey / Dark follow chat look (Grok-style dark greys) */
+.card.look-dark { --cfg: #e3e5e8; --cbg: rgba(30,31,34,.97); --csurf: #2b2d31; --cmut: #b5bac1; --cline: rgba(255,255,255,.1); }
+.card.look-grey { --cfg: #f2f3f5; --cbg: rgba(74,77,85,.97); --csurf: #5c6069; --cmut: #d4d7dc; --cline: rgba(255,255,255,.18); }
+.card.look-dark, .card.look-grey { background: var(--cbg); color: var(--cfg); border: 1px solid var(--cline); }
+:is(.card.look-dark, .card.look-grey) :is(.cr, .src, .lbl, .muted, .tm, .x, .cno, .chat .lbl .cno) { color: var(--cmut); }
+:is(.card.look-dark, .card.look-grey) .lbl b { color: var(--cfg); }
+:is(.card.look-dark, .card.look-grey) .acts li { border-top-color: var(--cline); }
+:is(.card.look-dark, .card.look-grey) .thread { background: rgba(0,0,0,.18); }
+:is(.card.look-dark, .card.look-grey) .msg.them { background: var(--csurf); color: var(--cfg); border-color: var(--cline); }
+:is(.card.look-dark, .card.look-grey) :is(.clearbtn, .cpexp, .chat .lbl .cpexp, select, textarea, input:not([type=checkbox]):not([type=color]):not([type=range])) { background: var(--csurf); color: var(--cfg); border: 1px solid var(--cline); }
+:is(.card.look-dark, .card.look-grey) .howto { background: var(--csurf); color: var(--cfg); border-color: var(--cline); }
+:is(.card.look-dark, .card.look-grey) .cin button { background: #5865f2; } :is(.card.look-dark, .card.look-grey) .cok { color: #4ade80; }
+.card .msg.me { background: var(--me, #2b6fd6); color: var(--me-fg, #fff); }
+.card.hc { background: #fff; color: #000; border: 3px solid #000; } .card.hc.look-dark, .card.hc.look-grey { --cbg: #000; --cfg: #fff; --cmut: #fff; --csurf: #000; --cline: #ffe600; }
+.card.hc .msg.me { background: #ffe600; color: #000; } .card.hc * { font-weight: 700; }
+.card.hc:not(.look-dark):not(.look-grey) :is(.muted, .tm, .lbl, .cr, .src) { color: #000; }
+:is(.card.look-dark, .card.look-grey) .custom summary { color: var(--cfg); } :is(.card.look-dark, .card.look-grey) .clearbtn:hover { background: var(--cline); }

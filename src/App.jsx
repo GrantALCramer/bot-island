@@ -20,7 +20,7 @@ import { askPermission, chime, useAlertNotifications } from './notify.js';
 import { botColor, etHour, fmtET, fmtHour, STATE_INFO } from './util.js';
 import { useChat, ChatThread, ChatSettings } from './Chat.jsx';
 import { ChatPop, ChatLookControls } from './ChatPop.jsx';
-import { useChatPrefs } from './chatPrefs.js';
+import { useChatPrefs, useLook, meVars } from './chatPrefs.js';
 
 // Guard every material's output against negative / NaN colors. Some shaders (water, atlantis) can emit slightly
 // negative values; on NVIDIA/ANGLE-D3D the HDR bloom + sRGB pow() turn those into NaN, which shows up as flickering
@@ -382,8 +382,8 @@ function GitSourceEditor({ git, onSaved }) {
 }
 function ChatLookSettings() { const [p, set] = useChatPrefs(); return <ChatLookControls prefs={p} set={set} />; }
 function Card({ bot, label, chat, onClose, onScreen, onExpand }) {
-  const si = STATE_INFO[bot.state] || STATE_INFO.idle;
-  return (<div className="card panel">
+  const si = STATE_INFO[bot.state] || STATE_INFO.idle; const [cp] = useChatPrefs(); const look = useLook(cp);
+  return (<div className={`card panel look-${look}${cp.contrast ? ' hc' : ''}`} style={meVars(cp)}>
     <button className="x" onClick={onClose}>×</button>
     <div className="ch"><i className="big" style={{ background: botColor(bot) }} /><div><div className="cn">{bot.name}{chat.unread(bot.id) > 0 && <span className="ubadge" title="new chat replies">{chat.unread(bot.id)} new</span>}</div><div className="cr">{bot.title || 'Grok Bot'}</div></div></div>
     <div className="crow"><span className="chip" style={{ background: si.color }}>{label}</span><span className="src">{bot.source === 'demo' ? 'demo data' : bot.source === 'real' ? 'live' : 'no reports yet'}</span>

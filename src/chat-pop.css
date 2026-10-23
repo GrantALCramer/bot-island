@@ -1,8 +1,12 @@
 /* pop-out chat */
-.cpback { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .35); }
+.cpback { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .2); }
+.cpback.pinned { background: transparent; pointer-events: none; z-index: 1100; } .cpback.pinned .cpwin { pointer-events: auto; }
+.cpwin.pinned { box-shadow: 0 18px 60px rgba(0,0,0,.45), 0 0 0 2px #f59e0b; }
 .cpwin { position: absolute; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 60px rgba(0,0,0,.45);
   --fg: #1d1a16; --bg: #fffdf8; --mut: #6b6257; --them: #ffffff; --them-fg: #1d1a16; --me: #2b6fd6; --me-fg: #fff; --line: rgba(0,0,0,.12); color: var(--fg); }
-.cpwin.dark { --fg: #ffffff; --bg: #000000; --mut: #c9c9c9; --them: #1c1c1c; --them-fg: #fff; --me: #3b82f6; --me-fg: #fff; --line: rgba(255,255,255,.25); }
+.cpwin.dark { --fg: #e3e5e8; --bg: #1e1f22; --mut: #b5bac1; --them: #2b2d31; --them-fg: #e3e5e8; --me: #2b6fd6; --me-fg: #fff; --line: rgba(255,255,255,.12); }
+.cpwin.grey { --fg: #f2f3f5; --bg: #4a4d55; --mut: #d4d7dc; --them: #5c6069; --them-fg: #f7f8fa; --me: #2b6fd6; --me-fg: #fff; --line: rgba(255,255,255,.2); }
+.cpwin.maxed { border-radius: 12px; } .cpwin.full .fwedge { display: none; }
 .cpwin.full { inset: 0 !important; width: auto !important; height: auto !important; border-radius: 0; }
 .cpwin.framed .cpinner { margin: 22px; border-radius: 12px; }
 .cpinner { position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); padding: 10px 14px 12px; }
@@ -26,11 +30,12 @@
 .cpwin .msg.them { background: var(--them); color: var(--them-fg); border-color: var(--line); }
 .cpwin .msg.me { background: var(--me); color: var(--me-fg); }
 .cpwin.tint.light .msg.them { background: color-mix(in srgb, var(--bot) 22%, #ffffff); border-left: 4px solid var(--bot); }
-.cpwin.tint.dark .msg.them { background: color-mix(in srgb, var(--bot) 28%, #000000); border-left: 4px solid var(--bot); }
+.cpwin.tint.dark .msg.them { background: color-mix(in srgb, var(--bot) 22%, #2b2d31); border-left: 4px solid var(--bot); }
+.cpwin.tint.grey .msg.them { background: color-mix(in srgb, var(--bot) 18%, #4f535b); border-left: 4px solid var(--bot); }
 .cpwin .cin textarea { font-size: calc(14px * var(--cp-scale)); background: var(--bg); color: var(--fg); border-color: var(--line); }
 .cpwin .howto, .cpwin .muted { color: var(--mut); }
 .cpwin.hc { --fg: #000; --bg: #fff; --mut: #000; --them: #fff; --them-fg: #000; --me: #ffe600; --me-fg: #000; --line: #000; }
-.cpwin.hc.dark { --fg: #fff; --bg: #000; --mut: #fff; --them: #000; --them-fg: #fff; --me: #ffe600; --me-fg: #000; --line: #ffe600; }
+.cpwin.hc.dark, .cpwin.hc.grey { --fg: #fff; --bg: #000; --mut: #fff; --them: #000; --them-fg: #fff; --me: #ffe600; --me-fg: #000; --line: #ffe600; }
 .cpwin.hc .msg { font-weight: 700; font-size: calc(16px * var(--cp-scale)); border: 2px solid var(--line); }
 .cpwin.hc .cplook, .cpwin.hc .chat > .lbl { font-weight: 700; }
 .cpresize { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; z-index: 2; cursor: nwse-resize; touch-action: none;
@@ -49,3 +54,11 @@
 .cpwin .chat.big { border-radius: 0; background: transparent; box-shadow: none; padding: 0; } /* .big is used elsewhere in styles.css */
 .cpwin.hc .cpx { color: var(--fg); background: var(--bg); border: 2px solid var(--line); }
 .cpwin .cplook .seg button:not(.on) { background: var(--bg); color: var(--fg); }
+
+.mepick { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 6px 0; font-size: 12.5px; }
+.mepick .mel { font-weight: 700; margin-right: 4px; }
+.mesw { width: 28px; height: 28px; min-height: 28px !important; padding: 0 !important; border-radius: 50% !important; border: 2px solid rgba(127,127,127,.5) !important; cursor: pointer; font-weight: 800; }
+.mesw.on { outline: 3px solid #f59e0b; outline-offset: 1px; }
+.mesw.def { width: auto; border-radius: 999px !important; padding: 0 8px !important; background: #2b6fd6 !important; color: #fff !important; }
+.mepick input[type=color] { width: 32px; height: 28px; border: 0; background: none; padding: 0; cursor: pointer; }
+.cpme summary { cursor: pointer; font-weight: 700; }

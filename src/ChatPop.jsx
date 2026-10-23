@@ -2,15 +2,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChatThread } from './Chat.jsx';
-import { useChatPrefs, useMedia } from './chatPrefs.js';
+import { useChatPrefs, useMedia, useLook, meVars, ME_SWATCH, readableOn } from './chatPrefs.js';
+import { useFloatWin } from './floatWin.jsx';
 import { THEME_FRAMES, HOLIDAY_FRAMES } from './frames.js';
 import { HOLIDAYS, holidayFor } from './holidays.js';
 import './chat-pop.css';
 
 const GEO_KEY = 'botisland.chatPop';
-const loadGeo = () => { try { return JSON.parse(localStorage.getItem(GEO_KEY) || 'null'); } catch { return null; } };
-function fitGeo(g) { const W = innerWidth, H = innerHeight; const w = Math.min(Math.max(g?.w || W * 0.7, 320), W - 16), h = Math.min(Math.max(g?.h || H * 0.7, 260), H - 16);
-  const x = Math.min(Math.max(g?.x ?? (W - w) / 2, 8), W - w - 8), y = Math.min(Math.max(g?.y ?? (H - h) / 2, 8), H - h - 8); return { x, y, w, h }; }
+const DEF = { w: (W) => W * 0.6, h: (H) => H * 0.7 };
 
 // which frame to draw (null = none); exported for Island settings previews and tests
 export function pickFrame(prefs, themeId, date = new Date(), { contrast, seasonHoliday } = {}) {
@@ -37,10 +36,11 @@ export function ChatLookControls({ prefs, set, compact }) {
       <span className="pct">{prefs.textPct}%</span>
     </label>
     <div className="seg" role="group" aria-label="Chat look">
-      {[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Auto']].map(([k, l]) => <button key={k} type="button" aria-pressed={prefs.look === k} className={prefs.look === k ? 'on' : ''} onClick={() => set({ look: k })}>{l}</button>)}
+      {[['light', 'Light'], ['grey', 'Grey'], ['dark', 'Dark'], ['auto', 'Auto']].map(([k, l]) => <button key={k} type="button" aria-pressed={prefs.look === k} className={prefs.look === k ? 'on' : ''} onClick={() => set({ look: k })}>{l}</button>)}
     </div>
     <label className="cptog"><input type="checkbox" checked={prefs.contrast} onChange={(e) => set({ contrast: e.target.checked })} /> High contrast</label>
     <label className="cptog"><input type="checkbox" checked={prefs.botColors} onChange={(e) => set({ botColors: e.target.checked })} /> Bot colors</label>
+    {compact ? <details className="cpme"><summary>Sent color</summary><MeColorPicker prefs={prefs} set={set} /></details> : <MeColorPicker prefs={prefs} set={set} />}
     {!compact && <>
       <label className="cpsel">Frame <select value={prefs.frame} onChange={(e) => set({ frame: e.target.value })} aria-label="Decorative frame">
         <option value="off">Off</option><option value="theme">Match island theme</option><option value="holiday">Holiday (auto by date)</option><option value="pick">Always a holiday…</option></select></label>
@@ -49,14 +49,23 @@ export function ChatLookControls({ prefs, set, compact }) {
   </div>);
 }
 
+export function MeColorPicker({ prefs, set }) {
+  const cur = prefs.meColor;
+  return (<div className="mepick" role="group" aria-label="Sent message color"><span className="mel">Sent bubbles</span>
+    <button type="button" className={'mesw def' + (!cur ? ' on' : '')} aria-pressed={!cur} title="Default blue" onClick={() => set({ meColor: null })}>Default</button>
+    {ME_SWATCH.slice(1).map((c) => <button key={c} type="button" className={'mesw' + (cur === c ? ' on' : '')} aria-pressed={cur === c} style={{ background: c, color: readableOn(c) }} title={c} aria-label={`Sent color ${c}`} onClick={() => set({ meColor: c })}>{cur === c ? '✓' : ''}</button>)}
+    <input type="color" aria-label="Custom sent color" title="Custom color" value={/^#[0-9a-f]{6}$/i.test(cur || '') ? cur : '#2b6fd6'} onChange={(e) => set({ meColor: e.target.value })} />
+    {prefs.contrast && <span className="mel">(high contrast uses yellow)</span>}
+  </div>);
+}
+
 export function ChatPop({ bot, chat, themeId, color, onClose, now, seasonHoliday }) {
   const [prefs, set] = useChatPrefs();
-  const sysDark = useMedia('(prefers-color-scheme: dark)'); const still = useMedia('(prefers-reduced-motion: reduce)'); const narrow = useMedia('(max-width: 700px)');
-  const dark = prefs.look === 'dark' || (prefs.look === 'auto' && sysDark);
-  const [geo, setGeo] = useState(() => fitGeo(loadGeo()));
+  const look = useLook(prefs); const still = useMedia('(prefers-reduced-motion: reduce)'); const narrow = useMedia('(max-width: 700px)');
+  const fw = useFloatWin(GEO_KEY, DEF, { disabled: narrow, min: { w: 320, h: 260 } });
+  const pinned = !narrow && !!fw.extra.pinned;
   const win = useRef(); const prevFocus = useRef(null); const ours = useRef(false);
   const frame = pickFrame(prefs, themeId, now || new Date(), { seasonHoliday });
-  const saveGeo = (g) => { setGeo(g); try { localStorage.setItem(GEO_KEY, JSON.stringify(g)); } catch {} };
   // Android back / browser back closes the pop-out: one history entry while open
   const close = useRef(onClose); close.current = onClose;
   const requestClose = () => { if (ours.current && history.state?.botislandChat) history.back(); else close.current(); };
@@ -64,39 +73,36 @@ export function ChatPop({ bot, chat, themeId, color, onClose, now, seasonHoliday
     history.pushState({ ...(history.state || {}), botislandChat: 1 }, ''); ours.current = true;
     const pop = () => { ours.current = false; close.current(); };
     addEventListener('popstate', pop);
-    const onResize = () => setGeo((g) => fitGeo(g)); addEventListener('resize', onResize);
-    return () => { removeEventListener('popstate', pop); removeEventListener('resize', onResize); };
+    return () => removeEventListener('popstate', pop);
   }, []);
-  // focus: move in, trap Tab, Escape closes, restore on close
+  // Escape closes even when focus is on the island (pinned window, island interactive)
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !win.current?.contains(document.activeElement)) requestClose(); }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
   useLayoutEffect(() => { prevFocus.current = document.activeElement; const el = win.current; (el.querySelector('textarea') || el.querySelector('.cpx'))?.focus(); return () => prevFocus.current?.focus?.(); }, []);
   const onKey = (e) => {
-    if (e.key === 'Escape') { e.stopPropagation(); requestClose(); return; }
-    if (e.key !== 'Tab') return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); requestClose(); return; }
+    if (e.key !== 'Tab' || pinned) return; // pinned = non-modal: Tab may leave the window
     const f = [...win.current.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && x.offsetParent !== null);
     if (!f.length) return; const first = f[0], last = f[f.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
-  const drag = (mode) => (e) => { if (narrow || e.button > 0 || (mode === 'move' && e.target.closest('button,input,select,label'))) return;
-    e.preventDefault(); const sx = e.clientX, sy = e.clientY, g0 = geo; let g = g0;
-    const mv = (ev) => { const dx = ev.clientX - sx, dy = ev.clientY - sy;
-      g = fitGeo(mode === 'move' ? { ...g0, x: g0.x + dx, y: g0.y + dy } : { ...g0, w: g0.w + dx, h: g0.h + dy }); setGeo(g); };
-    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); saveGeo(g); };
-    addEventListener('pointermove', mv); addEventListener('pointerup', up); };
-  const cls = ['cpwin', dark ? 'dark' : 'light', prefs.contrast && 'hc', narrow && 'full', frame && 'framed', prefs.botColors && !prefs.contrast && 'tint'].filter(Boolean).join(' ');
-  const style = narrow ? {} : { left: geo.x, top: geo.y, width: geo.w, height: geo.h };
-  return createPortal(<div className="cpback" onKeyDown={onKey}>
-    <div ref={win} className={cls} role="dialog" aria-modal="true" aria-labelledby="cp-title" style={{ ...style, '--cp-scale': prefs.textPct / 100, '--bot': color || '#888' }}>
+  const cls = ['cpwin', look, prefs.contrast && 'hc', narrow && 'full', frame && 'framed', prefs.botColors && !prefs.contrast && 'tint', pinned && 'pinned', fw.max && 'maxed'].filter(Boolean).join(' ');
+  return createPortal(<div className={'cpback' + (pinned ? ' pinned' : '')} onPointerDown={(e) => { if (e.target === e.currentTarget && !pinned) requestClose(); }}>
+    <div ref={win} className={cls} onKeyDown={onKey} role="dialog" aria-modal={!pinned} aria-labelledby="cp-title" style={{ ...fw.style, '--cp-scale': prefs.textPct / 100, '--bot': color || '#888', ...meVars(prefs) }}>
       <Frame frame={frame} still={still} />
       <div className="cpinner">
-        <div className="cptitle" onPointerDown={drag('move')}>
+        <div className="cptitle" onPointerDown={fw.onMoveDown} onDoubleClick={(e) => { if (!narrow && !e.target.closest('button')) fw.setMax(!fw.max); }}>
           <i className="dot" style={{ background: color }} aria-hidden="true" />
           <h2 id="cp-title">Chat with {bot.name}</h2>
+          {!narrow && <>
+            <button type="button" className={'wbtn' + (pinned ? ' on' : '')} aria-pressed={pinned} aria-label={pinned ? 'Unpin chat window' : 'Pin chat window (stays open while you use the island)'} title={pinned ? 'Pinned: stays open while you use the island' : 'Pin: keep open while using the island'} onClick={() => fw.setExtra({ pinned: !pinned })}>📌</button>
+            <button type="button" className="wbtn" aria-label={fw.max ? 'Restore window size' : 'Maximize window'} title={fw.max ? 'Restore' : 'Maximize'} onClick={() => fw.setMax(!fw.max)}>{fw.max ? '❐' : '□'}</button>
+          </>}
           <button type="button" className="cpx" aria-label="Close chat" onClick={requestClose}>✕</button>
         </div>
         <ChatLookControls prefs={prefs} set={set} compact />
         <ChatThread bot={bot} chat={chat} big />
       </div>
-      {!narrow && <div className="cpresize" role="separator" aria-label="Resize chat window" onPointerDown={drag('size')} />}
+      {fw.handles}
     </div>
   </div>, document.body);
 }

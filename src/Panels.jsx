@@ -1,6 +1,8 @@
 // Side panels: activity log (timeline of every bot's reports) and the task screen (one bot's task, notes, recent events).
 import { useEffect, useMemo, useState } from 'react';
 import { botColor } from './util.js';
+import { useChatPrefs, useLook, useMedia } from './chatPrefs.js';
+import { useFloatWin } from './floatWin.jsx';
 
 const tLocal = (ts, withDay) => new Date(ts).toLocaleString([], withDay ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' } : { hour: 'numeric', minute: '2-digit' });
 const midnight = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -38,10 +40,18 @@ export function ActivityLog({ bots, info, onClose, onSelect }) {
 export function TaskScreen({ bot, label, info, onClose }) {
   const ev = useLog(bot.id, true, 7); const last = [...ev].reverse().slice(0, 8);
   const notes = last.filter((e) => e.text).slice(0, 3); const si = info[bot.state] || info.idle;
-  return (<div className="tscreen panel">
-    <button className="x" onClick={onClose}>×</button>
-    <div className="ts-h"><i className="dot" style={{ background: botColor(bot) }} /> {bot.name}'s screen <span className="chip" style={{ background: si.color }}>{label}</span></div>
-    <div className="ts-glass">
+  const [cp] = useChatPrefs(); const look = useLook(cp); const narrow = useMedia('(max-width: 700px)');
+  const fw = useFloatWin('botisland.taskScreen', { w: () => 440, h: (H) => Math.min(520, H - 160), y: () => 70 }, { disabled: narrow, min: { w: 300, h: 200 } });
+  const mini = !!fw.extra.mini;
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !document.querySelector('.cpwin')) onClose(); }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onClose]);
+  const st = narrow ? {} : mini ? { left: fw.style.left, top: fw.style.top, width: fw.style.width } : fw.style;
+  return (<div className={`tscreen panel float look-${look}${cp.contrast ? ' hc' : ''}${narrow ? ' sheet' : ''}${mini ? ' mini' : ''}${fw.max ? ' maxed' : ''}`} style={st} role="dialog" aria-label={`${bot.name}'s task screen`}>
+    <div className="ts-h" onPointerDown={fw.onMoveDown} onDoubleClick={(e) => { if (!narrow && !e.target.closest('button')) fw.setMax(!fw.max); }}><i className="dot" style={{ background: botColor(bot) }} /> <span className="ts-name">{bot.name}'s screen</span> <span className="chip" style={{ background: si.color }}>{label}</span>
+      <span className="ts-btns">
+        <button type="button" className="wbtn" aria-label={mini ? 'Expand task screen' : 'Minimize task screen'} title={mini ? 'Expand' : 'Minimize'} onClick={() => fw.setExtra({ mini: !mini })}>{mini ? '▢' : '–'}</button>
+        <button type="button" className="wbtn" aria-label="Close task screen" title="Close (Esc)" onClick={onClose}>✕</button>
+      </span></div>
+    {!mini && <div className="ts-glass">
       <div className="ts-k">CURRENT TASK</div>
       <div className="ts-task">{bot.task || 'Nothing reported'}</div>
       <div className="ts-meta">since {tLocal(bot.stateSince || bot.updatedAt, true)} · last report {tLocal(bot.updatedAt, true)}</div>
@@ -49,7 +59,8 @@ export function TaskScreen({ bot, label, info, onClose }) {
       <div className="ts-k">RECENT EVENTS</div>
       {last.map((e, i) => <div key={i} className="ts-ev"><span>{tLocal(e.ts, true)}</span><span className="chip" style={{ background: (info[e.state] || {}).color || '#889' }}>{(info[e.state] || {}).label || 'note'}</span><span>{e.task || e.text}</span></div>)}
       {!last.length && <div className="ts-note">No events in the last 7 days.</div>}
-    </div>
+    </div>}
+    {!mini && fw.handles}
   </div>);
 }
 
