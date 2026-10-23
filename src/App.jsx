@@ -134,7 +134,18 @@ export default function App() {
   useEffect(() => { if (!URL_OVERRIDE) localStorage.setItem('botsim.settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { window.__botsim = { ...(window.__botsim || {}), select: (id) => { follow.current = true; setSelected(id); }, positions }; }, []);
 
-  const [popOf, setPopOf] = useState(() => qs.get('chatpop') || null); // pop-out chat (bot id)
+  // open pop-out chats: list of bot ids, last = front; persisted across reloads
+  const [pops, setPops] = useState(() => { const q = qs.get('chatpop'); if (q) return q.split(','); try { const v = JSON.parse(localStorage.getItem('botisland.chatPops') || '[]'); return Array.isArray(v) ? v.slice(-8) : []; } catch { return []; } });
+  useEffect(() => { try { localStorage.setItem('botisland.chatPops', JSON.stringify(pops)); } catch {} }, [pops]);
+  const openPop = (id) => setPops((p) => matchMedia('(max-width: 700px)').matches ? [id] : [...p.filter((x) => x !== id), id]);
+  const raisePop = (id) => setPops((p) => (p[p.length - 1] === id ? p : [...p.filter((x) => x !== id), id]));
+  const closePop = (id) => setPops((p) => p.filter((x) => x !== id));
+  const popSlots = useRef({});
+  // Esc closes one chat per press: the focused chat, else the top-most (pinned first, then front of stack)
+  useEffect(() => { const k = (e) => { if (e.key !== 'Escape' || e.defaultPrevented) return; const wins = [...document.querySelectorAll('.cpwin[data-bot]')]; if (!wins.length) return;
+    const w = document.activeElement?.closest?.('.cpwin[data-bot]') || wins.sort((x, y) => (+y.style.zIndex || 0) - (+x.style.zIndex || 0))[0];
+    e.preventDefault(); if (history.state?.botislandChat === w.dataset.bot) history.back(); else closePop(w.dataset.bot); };
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
   const baseTheme = getTheme(settings.theme); const surround = settings.surround === 'land' ? 'land' : 'water';
   const theme = useMemo(() => themeFor(baseTheme, surround), [baseTheme, surround]);
   const calm = theme.weathers.includes('clear') ? 'clear' : theme.defaultWeather;
@@ -241,8 +252,11 @@ export default function App() {
       </div>
 
       {screenOf && bots.find((b) => b.id === screenOf) && <TaskScreen bot={bots.find((b) => b.id === screenOf)} label={label(bots.find((b) => b.id === screenOf).state)} info={STATE_INFO} onClose={() => setScreenOf(null)} />}
-      {popOf && bots.find((b) => b.id === popOf) && <ChatPop bot={bots.find((b) => b.id === popOf)} chat={chat} themeId={baseTheme.id} color={botColor(bots.find((b) => b.id === popOf))} onClose={() => setPopOf(null)} now={qs.get('date') ? new Date(qs.get('date') + 'T12:00') : undefined} seasonHoliday={settings.seasonMode && !['auto', 'off', 'spring'].includes(settings.seasonMode) ? SEASON_FRAME[settings.seasonMode] : null} />}
-      {sel && <Card onExpand={() => setPopOf(sel.id)} onScreen={() => setScreenOf(sel.id)} bot={sel} label={act?.ids.includes(sel.id) && sel.state === 'idle' ? `${label(sel.state)} · ${act.label}` : label(sel.state)} chat={chat} onClose={() => setSelected(null)} />}
+      {(() => { const live = pops.filter((id) => bots.some((b) => b.id === id)); const narrowNow = typeof matchMedia !== 'undefined' && matchMedia('(max-width: 700px)').matches; const shown = narrowNow ? live.slice(-1) : live;
+        const slots = popSlots.current; Object.keys(slots).forEach((k) => { if (!live.includes(k)) delete slots[k]; }); live.forEach((id) => { if (slots[id] == null) { let n = 0; while (Object.values(slots).includes(n)) n++; slots[id] = n; } });
+        const hol = settings.seasonMode && !['auto', 'off', 'spring'].includes(settings.seasonMode) ? SEASON_FRAME[settings.seasonMode] : null;
+        return shown.map((id) => { const b = bots.find((x) => x.id === id); return <ChatPop key={id} bot={b} chat={chat} themeId={baseTheme.id} color={botColor(b)} order={live.indexOf(id)} slot={slots[id] % 8} onFocus={() => raisePop(id)} onClose={() => closePop(id)} now={qs.get('date') ? new Date(qs.get('date') + 'T12:00') : undefined} seasonHoliday={hol} />; }); })()}
+      {sel && <Card onExpand={() => openPop(sel.id)} onScreen={() => setScreenOf(sel.id)} bot={sel} label={act?.ids.includes(sel.id) && sel.state === 'idle' ? `${label(sel.state)} · ${act.label}` : label(sel.state)} chat={chat} onClose={() => setSelected(null)} />}
 
       <button className="toolbtn panel" onClick={() => setShowLog((v) => !v)}>📜 <span className="gl">Activity log</span></button>
       {showLog && <ActivityLog bots={bots} info={STATE_INFO} onClose={() => setShowLog(false)} onSelect={(id) => select(id)} />}

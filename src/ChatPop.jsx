@@ -9,7 +9,6 @@ import { HOLIDAYS, holidayFor } from './holidays.js';
 import './chat-pop.css';
 
 const GEO_KEY = 'botisland.chatPop';
-const DEF = { w: (W) => W * 0.6, h: (H) => H * 0.7 };
 
 // which frame to draw (null = none); exported for Island settings previews and tests
 export function pickFrame(prefs, themeId, date = new Date(), { contrast, seasonHoliday } = {}) {
@@ -59,50 +58,44 @@ export function MeColorPicker({ prefs, set }) {
   </div>);
 }
 
-export function ChatPop({ bot, chat, themeId, color, onClose, now, seasonHoliday }) {
+export function ChatPop({ bot, chat, themeId, color, onClose, onFocus, order = 0, slot = 0, now, seasonHoliday }) {
   const [prefs, set] = useChatPrefs();
   const look = useLook(prefs); const still = useMedia('(prefers-reduced-motion: reduce)'); const narrow = useMedia('(max-width: 700px)');
-  const fw = useFloatWin(GEO_KEY, DEF, { disabled: narrow, min: { w: 320, h: 260 } });
+  // per-bot geometry; new windows cascade ~30px per open slot so they don't stack exactly
+  const def = { w: (W) => Math.min(W * 0.45, 640), h: (H) => H * 0.7, x: (W, w) => (W - w) / 2 - 90 + slot * 30, y: (H, h) => (H - h) / 2 - 60 + slot * 30 };
+  const fw = useFloatWin(GEO_KEY + '.' + bot.id, def, { disabled: narrow, min: { w: 320, h: 260 } });
   const pinned = !narrow && !!fw.extra.pinned;
   const win = useRef(); const prevFocus = useRef(null); const ours = useRef(false);
   const frame = pickFrame(prefs, themeId, now || new Date(), { seasonHoliday });
-  // Android back / browser back closes the pop-out: one history entry while open
   const close = useRef(onClose); close.current = onClose;
-  const requestClose = () => { if (ours.current && history.state?.botislandChat) history.back(); else close.current(); };
+  // mobile only: Android/browser back closes the sheet (one history entry while open)
+  const requestClose = () => { if (ours.current && history.state?.botislandChat === bot.id) history.back(); else close.current(); };
   useEffect(() => {
-    history.pushState({ ...(history.state || {}), botislandChat: 1 }, ''); ours.current = true;
+    if (!narrow) return;
+    history.pushState({ ...(history.state || {}), botislandChat: bot.id }, ''); ours.current = true;
     const pop = () => { ours.current = false; close.current(); };
     addEventListener('popstate', pop);
-    return () => removeEventListener('popstate', pop);
-  }, []);
-  // Escape closes even when focus is on the island (pinned window, island interactive)
-  useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !win.current?.contains(document.activeElement)) requestClose(); }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
-  useLayoutEffect(() => { prevFocus.current = document.activeElement; const el = win.current; (el.querySelector('textarea') || el.querySelector('.cpx'))?.focus(); return () => prevFocus.current?.focus?.(); }, []);
-  const onKey = (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); requestClose(); return; }
-    if (e.key !== 'Tab' || pinned) return; // pinned = non-modal: Tab may leave the window
-    const f = [...win.current.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && x.offsetParent !== null);
-    if (!f.length) return; const first = f[0], last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  };
-  const cls = ['cpwin', look, prefs.contrast && 'hc', narrow && 'full', frame && 'framed', prefs.botColors && !prefs.contrast && 'tint', pinned && 'pinned', fw.max && 'maxed'].filter(Boolean).join(' ');
-  return createPortal(<div className={'cpback' + (pinned ? ' pinned' : '')} onPointerDown={(e) => { if (e.target === e.currentTarget && !pinned) requestClose(); }}>
-    <div ref={win} className={cls} onKeyDown={onKey} role="dialog" aria-modal={!pinned} aria-labelledby="cp-title" style={{ ...fw.style, '--cp-scale': prefs.textPct / 100, '--bot': color || '#888', ...meVars(prefs) }}>
+    return () => { removeEventListener('popstate', pop); ours.current = false; };
+  }, [narrow]);
+  useLayoutEffect(() => { prevFocus.current = document.activeElement; const el = win.current; (el.querySelector('textarea') || el.querySelector('.cpx'))?.focus(); return () => { if (el.contains(document.activeElement) || document.activeElement === document.body) prevFocus.current?.focus?.(); }; }, []);
+  const tid = 'cp-title-' + bot.id;
+  const cls = ['cpwin', 'cpfloat', look, prefs.contrast && 'hc', narrow && 'full', frame && 'framed', prefs.botColors && !prefs.contrast && 'tint', pinned && 'pinned', fw.max && 'maxed'].filter(Boolean).join(' ');
+  return createPortal(
+    <div ref={win} className={cls} data-bot={bot.id} onPointerDownCapture={() => onFocus?.()} onFocusCapture={() => onFocus?.()} role="dialog" aria-modal="false" aria-labelledby={tid} style={{ ...fw.style, zIndex: (pinned ? 1300 : 1000) + order, '--cp-scale': prefs.textPct / 100, '--bot': color || '#888', ...meVars(prefs) }}>
       <Frame frame={frame} still={still} />
       <div className="cpinner">
         <div className="cptitle" onPointerDown={fw.onMoveDown} onDoubleClick={(e) => { if (!narrow && !e.target.closest('button')) fw.setMax(!fw.max); }}>
           <i className="dot" style={{ background: color }} aria-hidden="true" />
-          <h2 id="cp-title">Chat with {bot.name}</h2>
+          <h2 id={tid}>Chat with {bot.name}</h2>
           {!narrow && <>
-            <button type="button" className={'wbtn' + (pinned ? ' on' : '')} aria-pressed={pinned} aria-label={pinned ? 'Unpin chat window' : 'Pin chat window (stays open while you use the island)'} title={pinned ? 'Pinned: stays open while you use the island' : 'Pin: keep open while using the island'} onClick={() => fw.setExtra({ pinned: !pinned })}><svg className="pinico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><g transform="rotate(45 12 12)" fill="currentColor"><path d="M8 2h8v2h-1.2l.7 7 2.5 2.2V15H6v-1.8L8.5 11l.7-7H8z"/><path d="M11.2 15h1.6l-.3 7h-1z"/></g></svg></button>
+            <button type="button" className={'wbtn' + (pinned ? ' on' : '')} aria-pressed={pinned} aria-label={pinned ? 'Unpin: stop keeping this chat on top' : 'Pin: keep this chat on top of other chats'} title={pinned ? 'Pinned on top' : 'Pin on top'} onClick={() => fw.setExtra({ pinned: !pinned })}><svg className="pinico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><g transform="rotate(45 12 12)" fill="currentColor"><path d="M8 2h8v2h-1.2l.7 7 2.5 2.2V15H6v-1.8L8.5 11l.7-7H8z"/><path d="M11.2 15h1.6l-.3 7h-1z"/></g></svg></button>
             <button type="button" className="wbtn" aria-label={fw.max ? 'Restore window size' : 'Maximize window'} title={fw.max ? 'Restore' : 'Maximize'} onClick={() => fw.setMax(!fw.max)}>{fw.max ? '❐' : '□'}</button>
           </>}
-          <button type="button" className="cpx" aria-label="Close chat" onClick={requestClose}>✕</button>
+          <button type="button" className="cpx" aria-label={`Close chat with ${bot.name}`} onClick={requestClose}>✕</button>
         </div>
         <ChatLookControls prefs={prefs} set={set} compact />
         <ChatThread bot={bot} chat={chat} big />
       </div>
       {fw.handles}
-    </div>
-  </div>, document.body);
+    </div>, document.body);
 }
