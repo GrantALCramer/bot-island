@@ -49,5 +49,13 @@
   ],
   "botisland": {
     "updateRepo": "GrantALCramer/bot-island"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GrantALCramer/bot-island.git"
+  },
+  "homepage": "https://github.com/GrantALCramer/bot-island#readme",
+  "bugs": {
+    "url": "https://github.com/GrantALCramer/bot-island/issues"
   }
 }

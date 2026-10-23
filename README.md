@@ -23,6 +23,7 @@ and when it's asleep it's in bed. Click a blob to see what it's doing and chat w
 | ![Atlantis](docs/screenshots/atlantis.png) | ![Jungle](docs/screenshots/jungle.png) | ![Sakura](docs/screenshots/sakura.png) |
 | ![Old West](docs/screenshots/west.png) | ![City](docs/screenshots/city.png) | ![Crystal Cave](docs/screenshots/cave.png) |
 | ![Haunted Graveyard](docs/screenshots/haunted.png) | ![Heaven](docs/screenshots/heaven.png) | ![Settings](docs/screenshots/settings.png) |
+| ![Candy Land](docs/screenshots/candy.png) | | |
 
 ## Contents
 [Choose where to host](#choose-where-to-host-your-island) · [Phone setup](#connect-from-your-phone) ·
@@ -84,7 +85,7 @@ No always-on PC needed. Paste this into your Grok Bot:
 
 ```text
 Please host Bot Island for me on your computer.
-1. Download the latest botisland-server-<version>.tar.gz from <this repo's URL>/releases/latest, unpack it,
+1. Download the latest botisland-server-<version>.tar.gz from https://github.com/GrantALCramer/bot-island/releases/latest, unpack it,
    and run it in the background with the remote endpoint on: BOTISLAND_REMOTE=1 BOTISLAND_OPEN=0 node server.js
    (needs Node.js 18+; or clone the repo, npm install, and run BOTISLAND_REMOTE=1 BOTISLAND_OPEN=0 npm start -- --yes).
 2. Add a keep-alive check (e.g. a scheduled job every few minutes) that restarts it if it isn't running.

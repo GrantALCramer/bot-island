@@ -68,5 +68,13 @@
   "devDependencies": {
     "electron": "^38.8.6",
     "electron-builder": "^26.15.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GrantALCramer/bot-island.git"
+  },
+  "homepage": "https://github.com/GrantALCramer/bot-island#readme",
+  "bugs": {
+    "url": "https://github.com/GrantALCramer/bot-island/issues"
   }
 }
