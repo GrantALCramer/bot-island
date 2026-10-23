@@ -1,6 +1,6 @@
 {
   "name": "botisland-android",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Bot Island Android app (Capacitor shell that connects to your self-hosted island)",
   "license": "MIT",
