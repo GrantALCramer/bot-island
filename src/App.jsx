@@ -420,5 +420,5 @@ function DesktopFullscreen() {
   const D = typeof window !== 'undefined' ? window.botislandDesktop : null; const [on, setOn] = useState(false);
   useEffect(() => { if (!D) return; D.getFullscreen().then(setOn).catch(() => {}); return D.onFullscreen(setOn); }, [D]);
   if (!D) return null;
-  return <label className="toggle"><input type="checkbox" checked={on} onChange={(e) => D.setFullscreen(e.target.checked)} /> Full screen (windowed) <small className="muted">(F11 · Esc to leave · mouse stays free)</small></label>;
+  return <label className="toggle"><input type="checkbox" checked={on} onChange={(e) => { const v = e.target.checked; setOn(v); D.setFullscreen(v).then(setOn).catch(() => {}); }} /> Full screen (windowed) <small className="muted">(F11 · Esc to leave · mouse stays free)</small></label>;
 }

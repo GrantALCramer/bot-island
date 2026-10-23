@@ -25,11 +25,20 @@ function readIslandCfg() { try { return JSON.parse(fs.readFileSync(islandFile, '
 // Full screen (windowed): Electron's own fullscreen = a borderless window covering the monitor the app is on. It never
 // grabs the mouse (pointer lock is denied below), the cursor moves freely to other monitors, Win key / Alt+Tab work,
 // and leaving it restores the previous window size/position. Remembered in desktop.json { fullscreen } (off by default).
-function setFullscreen(on) { on = !!on; const d = readDesk(); if (d.fullscreen !== on) { d.fullscreen = on; writeDesk(d); }
-  if (win && win.isFullScreen() !== on) win.setFullScreen(on); buildTray(); }
-ipcMain.handle('bi:fs:get', () => !!win?.isFullScreen());
-ipcMain.handle('bi:fs:set', (_e, on) => { setFullscreen(on); return !!on; });
-ipcMain.on('bi:fs:esc', () => { if (win?.isFullScreen()) setFullscreen(false); });
+// Main process is the single source of truth: fsWant = the state the user asked for (every F11 / checkbox / tray press flips
+// THIS, never the possibly-stale win.isFullScreen() which lags during the Windows transition). fsApply() drives the window
+// toward fsWant and re-checks after enter/leave events (and a safety timer) so rapid presses always settle on the last one.
+let fsWant = false, fsTimer = null;
+function fsBroadcast() { try { win?.webContents.send('bi:fs', fsWant); } catch {} buildTray(); }
+function fsApply() { clearTimeout(fsTimer); if (!win) return;
+  if (win.isFullScreen() !== fsWant) { if (!fsWant && !win.isVisible()) win.show(); win.setFullScreen(fsWant); }
+  fsTimer = setTimeout(() => { if (win && win.isFullScreen() !== fsWant) win.setFullScreen(fsWant); }, 700); }
+function setFullscreen(on) { on = !!on; fsWant = on; const d = readDesk(); if (!!d.fullscreen !== on) { d.fullscreen = on; writeDesk(d); }
+  fsApply(); fsBroadcast(); }
+ipcMain.handle('bi:fs:get', () => fsWant);
+ipcMain.handle('bi:fs:set', (_e, on) => { setFullscreen(on); return fsWant; });
+ipcMain.handle('bi:fs:toggle', () => { setFullscreen(!fsWant); return fsWant; });
+ipcMain.on('bi:fs:esc', () => { if (fsWant) setFullscreen(false); });
 function setStartWithWindows(on) { const d = readDesk(); d.startWithWindows = !!on; writeDesk(d);
   try { app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] }); } catch {} buildTray(); }
 async function setAllowBots(on) {
@@ -83,15 +92,18 @@ function createWindow(url) {
   // never lock/capture the mouse: deny pointer lock (and keyboard lock) requests, and stub the API in every page
   win.webContents.session.setPermissionRequestHandler((_wc, perm, cb) => cb(!['pointerLock', 'keyboardLock'].includes(perm)));
   win.webContents.on('dom-ready', () => win?.webContents.executeJavaScript('try{Element.prototype.requestPointerLock=function(){return Promise.reject(new Error("pointer lock disabled"))};document.exitPointerLock?.()}catch{}').catch(() => {}));
-  win.webContents.on('before-input-event', (e, i) => { if (i.type === 'keyDown' && i.key === 'F11' && !i.alt && !i.control && !i.meta) { e.preventDefault(); setFullscreen(!win.isFullScreen()); } });
-  const fsSync = () => { const on = !!win?.isFullScreen(); win?.webContents.send('bi:fs', on); const d = readDesk(); if (!!d.fullscreen !== on) { d.fullscreen = on; writeDesk(d); } buildTray(); };
+  win.webContents.on('before-input-event', (e, i) => { if (i.type === 'keyDown' && i.key === 'F11' && !i.alt && !i.control && !i.meta) { e.preventDefault(); if (!i.isAutoRepeat) setFullscreen(!fsWant); } });
+  // transition finished: if the user pressed again meanwhile, keep driving toward fsWant; otherwise just re-sync the UI
+  const fsSync = () => { setTimeout(() => { if (win && win.isFullScreen() !== fsWant) fsApply(); fsBroadcast(); }, 50); };
   win.on('enter-full-screen', fsSync); win.on('leave-full-screen', fsSync);
   const sameSite = (u) => { try { return new URL(u).origin === new URL(current?.url || url).origin; } catch { return false; } };
   win.webContents.setWindowOpenHandler(({ url: u }) => { // agent.txt etc. open in a small window; outside links in the real browser
     if (sameSite(u)) return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: ICON, width: 860, height: 760 } };
     if (/^https?:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, u) => { if (!sameSite(u)) { e.preventDefault(); if (/^https?:/.test(u)) shell.openExternal(u); } });
-  win.once('ready-to-show', () => { if (readDesk().fullscreen) win.setFullScreen(true); if (!HIDDEN) win.show(); });
+  fsWant = !!readDesk().fullscreen;
+  win.once('ready-to-show', () => { if (!HIDDEN) win.show(); if (fsWant) setTimeout(fsApply, 100); });
+  win.webContents.on('did-finish-load', fsBroadcast);
   win.on('closed', () => { win = null; app.quit(); });
   win.loadURL(url);
 }
@@ -121,7 +133,7 @@ function buildTray() {
       { label: updState === 'ready' ? 'Restart to install update' : updState === 'downloading' ? 'Downloading update…' : 'Check for updates…', enabled: updState !== 'downloading', click: () => manualCheck() }, { type: 'separator' },
       { label: 'Allow bot connections (port 8797, needs access key)', type: 'checkbox', checked: !!readIslandCfg().remote?.enabled, click: (m) => setAllowBots(m.checked).catch((e) => dialog.showErrorBox('Bot Island', String(e?.message || e))) },
       ...(island?.accessKey ? [{ label: 'Copy access key', click: () => clipboard.writeText(island.accessKey) }] : []),
-      { label: 'Full screen (windowed)    F11', type: 'checkbox', checked: win ? win.isFullScreen() : !!readDesk().fullscreen, click: (m) => setFullscreen(m.checked) },
+      { label: 'Full screen (windowed)    F11', type: 'checkbox', checked: fsWant, click: (m) => setFullscreen(m.checked) },
       { label: 'Start with Windows', type: 'checkbox', checked: !!readDesk().startWithWindows, click: (m) => setStartWithWindows(m.checked) }, { type: 'separator' }, { label: 'Quit', click: () => app.quit() }]));
   } catch {}
 }
