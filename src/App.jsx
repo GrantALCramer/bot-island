@@ -115,6 +115,7 @@ function CamApi({ follow }) {
 }
 
 export default function App() {
+  const [uiCp] = useChatPrefs(); const uiLook = useLook(uiCp);
   const { bots: rawBots, demo, connected, sources = [], wsChat } = useBotState();
   // dev/test only: ?testwork=N shows the first N bots as working and the rest idle (view-only, never saved or sent)
   const bots = useMemo(() => (TESTWORK == null ? rawBots : rawBots.map((b, i) => ({ ...b, state: i < TESTWORK ? 'working' : 'idle', visit: null }))), [rawBots]);
@@ -192,7 +193,7 @@ export default function App() {
   const select = (id) => { follow.current = true; setSelected(id); if (NARROW()) { setRosterOpen(false); setShowSettings(false); } };
   const label = (st) => theme.stateLabels?.[st] || (STATE_INFO[st] || STATE_INFO.idle).label;
 
-  return (<div className="app">
+  return (<div className={`app ui-${uiLook}${uiCp.contrast ? ' ui-hc' : ''}`}>
     <Canvas key={theme.id + (lite ? ':lite' : '')} shadows={!lite} dpr={lite ? [1, 1.5] : [1, 2]} camera={{ position: camInit.pos, fov: 42, near: 0.1, far: Math.max(1200, layout.camDist * 14) }} gl={{ antialias: true, preserveDrawingBuffer: true }}
       onPointerMissed={() => setSelected(null)}>
       <WorldCtx.Provider value={ctx}>

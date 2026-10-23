@@ -239,3 +239,34 @@ canvas { touch-action: none; }
 .card.hc .msg.me { background: #ffe600; color: #000; } .card.hc * { font-weight: 700; }
 .card.hc:not(.look-dark):not(.look-grey) :is(.muted, .tm, .lbl, .cr, .src) { color: #000; }
 :is(.card.look-dark, .card.look-grey) .custom summary { color: var(--cfg); } :is(.card.look-dark, .card.look-grey) .clearbtn:hover { background: var(--cline); }
+/* Island UI panels follow the chat look (Light = default beige; Grey; Dark = Grok-style greys; High contrast overrides). Card + task screen have their own rules above. */
+.app .panel { --fg: #1d1a16; --bg: #fffdf8; --mut: #6b6257; --line: rgba(0,0,0,.12); }
+.app.ui-grey { --ufg: #f2f3f5; --ubg: rgba(74,77,85,.97); --usurf: #5c6069; --umut: #d4d7dc; --uline: rgba(255,255,255,.2); --uon: #2b2d31; --uacc: #5eead4; --ulink: #a5c8ff; }
+.app.ui-dark { --ufg: #e3e5e8; --ubg: rgba(30,31,34,.97); --usurf: #2b2d31; --umut: #b5bac1; --uline: rgba(255,255,255,.12); --uon: #4e5058; --uacc: #2dd4bf; --ulink: #8ab4ff; }
+.app.ui-hc { --ufg: #000; --ubg: #fff; --usurf: #fff; --umut: #000; --uline: #000; --uon: #000; --uacc: #000; --ulink: #0000c0; }
+.app.ui-hc:is(.ui-dark, .ui-grey) { --ufg: #fff; --ubg: #000; --usurf: #000; --umut: #fff; --uline: #ffe600; --uon: #ffe600; --uacc: #ffe600; --ulink: #ffe600; }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) { background: var(--ubg); color: var(--ufg); border: 1px solid var(--uline); --fg: var(--ufg); --bg: var(--ubg); --mut: var(--umut); --line: var(--uline); }
+.app.ui-hc .panel:not(.card):not(.tscreen) { border-width: 2px; backdrop-filter: none; }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.ph, .lbl, .muted, .t2, .tm, .x, .settings .sect, .sect, .secs, .chev, .cno, .ticks, .src, .cr, .err) { color: var(--umut); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.lbl b, .sech:hover .sect, .nm, .rnd b, .actnow b) { color: var(--ufg); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.wx button, .seg button, .themes button, .clearbtn, .cplook button, select, textarea, input:not([type=checkbox]):not([type=color]):not([type=range])) { background: var(--usurf); color: var(--ufg); border: 1.5px solid var(--uline); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.wx button.on, .seg button.on, .cplook .seg button.on, .themes button.on) { background: var(--uon); color: var(--ufg); border-color: var(--uacc); box-shadow: 0 0 0 2px var(--uacc); font-weight: 750; }
+.app.ui-hc:not(.ui-dark):not(.ui-grey) .panel:not(.card):not(.tscreen) :is(.wx button.on, .seg button.on, .cplook .seg button.on, .themes button.on) { color: #fff; }
+.app.ui-hc:is(.ui-dark, .ui-grey) .panel:not(.card):not(.tscreen) :is(.wx button.on, .seg button.on, .cplook .seg button.on, .themes button.on) { color: #000; }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) .themes button.on { background: var(--uon); border-color: var(--uacc); box-shadow: 0 0 0 2px var(--uacc); }
+.app.ui-hc:not(.ui-dark):not(.ui-grey) .panel:not(.card):not(.tscreen) .themes button.on { color: #fff; }
+.app.ui-hc:is(.ui-dark, .ui-grey) .panel:not(.card):not(.tscreen) .themes button.on { color: #000; }
+.app:is(.ui-grey, .ui-dark) .panel:not(.card):not(.tscreen) .themes .soon { color: #fbbf24; }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.rnd, .actnow) { background: var(--usurf); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.sec, .acts li) { border-top-color: var(--uline); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.linkish, a) { color: var(--ulink); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.row:hover) { background: var(--uline); }
+.app:is(.ui-grey, .ui-dark) .panel:not(.card):not(.tscreen) .row.on { background: rgba(88,101,242,.3); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(input[type=checkbox], input[type=range]) { accent-color: var(--uacc); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) code { color: var(--ufg); }
+.app:is(.ui-grey, .ui-dark) .panel:not(.card):not(.tscreen) :is(.cok) { color: #4ade80; }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.conn, .howto, .csetup, .cbtn .danger, .logf select, .prof select) { background: var(--usurf); color: var(--ufg); border-color: var(--uline); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.cmain, .crow2, .cedit label, .cedit input, .row) { color: var(--ufg); }
+.app:is(.ui-grey, .ui-dark, .ui-hc) .panel:not(.card):not(.tscreen) :is(.car, .crow2 .car, .crow3 .car) { color: var(--umut); }
+.app:is(.ui-grey, .ui-dark) .panel:not(.card):not(.tscreen) .csetup.ok { background: rgba(34,197,94,.18); border-color: #22c55e; color: #4ade80; }
+.app:is(.ui-grey, .ui-dark) .panel:not(.card):not(.tscreen) :is(.cbtn .danger, .err, .srcs .err) { color: #fca5a5; }
