@@ -8,6 +8,9 @@ const { app, BrowserWindow, Menu, shell, dialog, Tray, nativeImage, clipboard } 
 let autoUpdater = null; try { ({ autoUpdater } = require('electron-updater')); } catch {}
 const path = require('node:path'); const fs = require('node:fs'); const net = require('node:net'); const { pathToFileURL } = require('node:url');
 
+// Portable exe: own profile + own island data (never touches the installed app's %APPDATA% files or remote.json)
+if (process.env.PORTABLE_EXECUTABLE_DIR) { const P = path.join(app.getPath('appData'), 'BotIsland-Portable');
+  app.setPath('userData', P); if (!process.env.BOTISLAND_HOME) process.env.BOTISLAND_HOME = path.join(P, 'island'); }
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setAppUserModelId('com.botisland.app'); // Windows: taskbar pinning + notifications
 const ISLAND = path.join(__dirname, 'island'); const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
