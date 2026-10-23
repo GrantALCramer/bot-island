@@ -94,7 +94,7 @@ export function ChatPop({ bot, chat, themeId, color, onClose, now, seasonHoliday
           <i className="dot" style={{ background: color }} aria-hidden="true" />
           <h2 id="cp-title">Chat with {bot.name}</h2>
           {!narrow && <>
-            <button type="button" className={'wbtn' + (pinned ? ' on' : '')} aria-pressed={pinned} aria-label={pinned ? 'Unpin chat window' : 'Pin chat window (stays open while you use the island)'} title={pinned ? 'Pinned: stays open while you use the island' : 'Pin: keep open while using the island'} onClick={() => fw.setExtra({ pinned: !pinned })}>📌</button>
+            <button type="button" className={'wbtn' + (pinned ? ' on' : '')} aria-pressed={pinned} aria-label={pinned ? 'Unpin chat window' : 'Pin chat window (stays open while you use the island)'} title={pinned ? 'Pinned: stays open while you use the island' : 'Pin: keep open while using the island'} onClick={() => fw.setExtra({ pinned: !pinned })}><svg className="pinico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><g transform="rotate(45 12 12)" fill="currentColor"><path d="M8 2h8v2h-1.2l.7 7 2.5 2.2V15H6v-1.8L8.5 11l.7-7H8z"/><path d="M11.2 15h1.6l-.3 7h-1z"/></g></svg></button>
             <button type="button" className="wbtn" aria-label={fw.max ? 'Restore window size' : 'Maximize window'} title={fw.max ? 'Restore' : 'Maximize'} onClick={() => fw.setMax(!fw.max)}>{fw.max ? '❐' : '□'}</button>
           </>}
           <button type="button" className="cpx" aria-label="Close chat" onClick={requestClose}>✕</button>

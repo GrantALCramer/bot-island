@@ -62,3 +62,6 @@
 .mesw.def { width: auto; border-radius: 999px !important; padding: 0 8px !important; background: #2b6fd6 !important; color: #fff !important; }
 .mepick input[type=color] { width: 32px; height: 28px; border: 0; background: none; padding: 0; cursor: pointer; }
 .cpme summary { cursor: pointer; font-weight: 700; }
+
+.wbtn .pinico { display:block; transition: transform .15s; }
+.wbtn.on .pinico { color:#f59e0b; transform: rotate(-30deg); }
