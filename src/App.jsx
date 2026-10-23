@@ -315,6 +315,7 @@ export default function App() {
         {settings.notify && perm !== 'granted' && <div className="muted small">{perm === 'denied' ? 'Notifications are blocked for this page in your browser settings.' : perm === 'unsupported' ? 'This browser has no notifications.' : 'Allow notifications when your browser asks.'}</div>}
         <label className="toggle"><input type="checkbox" checked={!!settings.notifySound} onChange={(e) => { set('notifySound', e.target.checked); if (e.target.checked) chime(); }} /> Play a sound too</label>
         </Sec><Sec id="display" title="Display">
+        <DesktopFullscreen />
         <label className="toggle"><input type="checkbox" checked={settings.bubbles} onChange={(e) => set('bubbles', e.target.checked)} /> Show speech bubbles</label>
         <label className="toggle"><input type="checkbox" checked={glow} disabled={lite} onChange={(e) => set('glow', e.target.checked)} /> Glow effects (bloom){lite && <small className="muted"> (off in lite)</small>}</label>
         <label className="toggle"><input type="checkbox" checked={lite} onChange={(e) => set('lite', e.target.checked)} /> Lite mode <small className="muted">(no glow/shadows, fewer plants &amp; particles{settings.lite == null ? `; auto ${IS_PHONE ? 'on for phones' : 'off'}` : ''})</small></label>
@@ -412,4 +413,12 @@ function Card({ bot, label, chat, onClose, onScreen, onExpand }) {
     <ol className="acts">{(bot.actions || []).slice(0, 10).map((a, i) => <li key={i}><span className="tm">{fmtET(a.ts)}</span><span>{a.text}</span></li>)}
       {!bot.actions?.length && <li className="muted">Nothing yet</li>}</ol>
   </div>);
+}
+
+// Desktop app only (window.botislandDesktop comes from the Electron preload; hidden in browsers)
+function DesktopFullscreen() {
+  const D = typeof window !== 'undefined' ? window.botislandDesktop : null; const [on, setOn] = useState(false);
+  useEffect(() => { if (!D) return; D.getFullscreen().then(setOn).catch(() => {}); return D.onFullscreen(setOn); }, [D]);
+  if (!D) return null;
+  return <label className="toggle"><input type="checkbox" checked={on} onChange={(e) => D.setFullscreen(e.target.checked)} /> Full screen (windowed) <small className="muted">(F11 · Esc to leave · mouse stays free)</small></label>;
 }

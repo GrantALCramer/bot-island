@@ -7,6 +7,7 @@
   "license": "MIT",
   "private": true,
   "main": "main.cjs",
+      "preload.cjs",
   "scripts": {
     "stage": "node stage.mjs",
     "start": "node stage.mjs && electron .",

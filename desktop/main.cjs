@@ -4,7 +4,7 @@
 // Remote island (optional): <userData>/remote.json = { "enabled": true, "servers": ["https://island.example.ts.net", "http://192.168.1.20:8797"],
 //   "key": "<island access key>" }. On launch the first server that answers is opened (key traded for a cookie, so no
 //   login prompt); if none answers, the built-in local island starts instead. Tray menu: switch server / edit settings.
-const { app, BrowserWindow, Menu, shell, dialog, Tray, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, Tray, nativeImage, clipboard, ipcMain, session } = require('electron');
 let autoUpdater = null; try { ({ autoUpdater } = require('electron-updater')); } catch {}
 const path = require('node:path'); const fs = require('node:fs'); const net = require('node:net'); const { pathToFileURL } = require('node:url');
 
@@ -22,6 +22,14 @@ const DESK_FILE = () => path.join(app.getPath('userData'), 'desktop.json');
 function readDesk() { try { return JSON.parse(fs.readFileSync(DESK_FILE(), 'utf8')); } catch { return {}; } }
 function writeDesk(d) { fs.mkdirSync(path.dirname(DESK_FILE()), { recursive: true }); fs.writeFileSync(DESK_FILE(), JSON.stringify(d, null, 2) + '\n'); }
 function readIslandCfg() { try { return JSON.parse(fs.readFileSync(islandFile, 'utf8').replace(/^\uFEFF/, '')); } catch { return {}; } }
+// Full screen (windowed): Electron's own fullscreen = a borderless window covering the monitor the app is on. It never
+// grabs the mouse (pointer lock is denied below), the cursor moves freely to other monitors, Win key / Alt+Tab work,
+// and leaving it restores the previous window size/position. Remembered in desktop.json { fullscreen } (off by default).
+function setFullscreen(on) { on = !!on; const d = readDesk(); if (d.fullscreen !== on) { d.fullscreen = on; writeDesk(d); }
+  if (win && win.isFullScreen() !== on) win.setFullScreen(on); buildTray(); }
+ipcMain.handle('bi:fs:get', () => !!win?.isFullScreen());
+ipcMain.handle('bi:fs:set', (_e, on) => { setFullscreen(on); return !!on; });
+ipcMain.on('bi:fs:esc', () => { if (win?.isFullScreen()) setFullscreen(false); });
 function setStartWithWindows(on) { const d = readDesk(); d.startWithWindows = !!on; writeDesk(d);
   try { app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] }); } catch {} buildTray(); }
 async function setAllowBots(on) {
@@ -71,13 +79,19 @@ function openUrl(base, key) { return key ? base + '/?key=' + encodeURIComponent(
 
 function createWindow(url) {
   win = new BrowserWindow({ width: 1320, height: 860, minWidth: 720, minHeight: 480, title: 'Bot Island', icon: ICON, backgroundColor: '#5ab8e2', show: false, autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false } });
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.cjs') } });
+  // never lock/capture the mouse: deny pointer lock (and keyboard lock) requests, and stub the API in every page
+  win.webContents.session.setPermissionRequestHandler((_wc, perm, cb) => cb(!['pointerLock', 'keyboardLock'].includes(perm)));
+  win.webContents.on('dom-ready', () => win?.webContents.executeJavaScript('try{Element.prototype.requestPointerLock=function(){return Promise.reject(new Error("pointer lock disabled"))};document.exitPointerLock?.()}catch{}').catch(() => {}));
+  win.webContents.on('before-input-event', (e, i) => { if (i.type === 'keyDown' && i.key === 'F11' && !i.alt && !i.control && !i.meta) { e.preventDefault(); setFullscreen(!win.isFullScreen()); } });
+  const fsSync = () => { const on = !!win?.isFullScreen(); win?.webContents.send('bi:fs', on); const d = readDesk(); if (!!d.fullscreen !== on) { d.fullscreen = on; writeDesk(d); } buildTray(); };
+  win.on('enter-full-screen', fsSync); win.on('leave-full-screen', fsSync);
   const sameSite = (u) => { try { return new URL(u).origin === new URL(current?.url || url).origin; } catch { return false; } };
   win.webContents.setWindowOpenHandler(({ url: u }) => { // agent.txt etc. open in a small window; outside links in the real browser
     if (sameSite(u)) return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: ICON, width: 860, height: 760 } };
     if (/^https?:/.test(u)) shell.openExternal(u); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, u) => { if (!sameSite(u)) { e.preventDefault(); if (/^https?:/.test(u)) shell.openExternal(u); } });
-  win.once('ready-to-show', () => { if (!HIDDEN) win.show(); });
+  win.once('ready-to-show', () => { if (readDesk().fullscreen) win.setFullScreen(true); if (!HIDDEN) win.show(); });
   win.on('closed', () => { win = null; app.quit(); });
   win.loadURL(url);
 }
@@ -107,6 +121,7 @@ function buildTray() {
       { label: updState === 'ready' ? 'Restart to install update' : updState === 'downloading' ? 'Downloading update…' : 'Check for updates…', enabled: updState !== 'downloading', click: () => manualCheck() }, { type: 'separator' },
       { label: 'Allow bot connections (port 8797, needs access key)', type: 'checkbox', checked: !!readIslandCfg().remote?.enabled, click: (m) => setAllowBots(m.checked).catch((e) => dialog.showErrorBox('Bot Island', String(e?.message || e))) },
       ...(island?.accessKey ? [{ label: 'Copy access key', click: () => clipboard.writeText(island.accessKey) }] : []),
+      { label: 'Full screen (windowed)    F11', type: 'checkbox', checked: win ? win.isFullScreen() : !!readDesk().fullscreen, click: (m) => setFullscreen(m.checked) },
       { label: 'Start with Windows', type: 'checkbox', checked: !!readDesk().startWithWindows, click: (m) => setStartWithWindows(m.checked) }, { type: 'separator' }, { label: 'Quit', click: () => app.quit() }]));
   } catch {}
 }
